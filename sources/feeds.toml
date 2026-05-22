@@ -1,0 +1,49 @@
+# phantom-ai-feed: starter RSS/Atom source list
+#
+# Rules for entries here:
+#   - must be reachable without an API key or login
+#   - must serve RSS 2.0 or Atom (heartbeat parses both)
+#   - tag with `category` for later FTS5 grouping
+#
+# Add a source: append a new [[feed]] block. The heartbeat picks them
+# up on next run.
+
+[[feed]]
+name      = "arxiv-cs-AI"
+url       = "http://export.arxiv.org/rss/cs.AI"
+category  = "research"
+
+[[feed]]
+name      = "arxiv-cs-CL"
+url       = "http://export.arxiv.org/rss/cs.CL"
+category  = "research"
+
+[[feed]]
+name      = "hacker-news-frontpage"
+url       = "https://hnrss.org/frontpage"
+category  = "community"
+
+[[feed]]
+name      = "karpathy-blog"
+url       = "https://karpathy.github.io/feed.xml"
+category  = "blog"
+
+[[feed]]
+name      = "lilianweng-blog"
+url       = "https://lilianweng.github.io/index.xml"
+category  = "blog"
+
+[[feed]]
+name      = "simonwillison-blog"
+url       = "https://simonwillison.net/atom/everything/"
+category  = "blog"
+
+[[feed]]
+name      = "r-LocalLLaMA-top"
+url       = "https://www.reddit.com/r/LocalLLaMA/top/.rss?t=day"
+category  = "community"
+
+[[feed]]
+name      = "huggingface-blog"
+url       = "https://huggingface.co/blog/feed.xml"
+category  = "blog"

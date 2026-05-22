@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Local secrets / env
+.env
+.env.*
+!.env.example
+
+# Local logs / output (heartbeat writes to ~/.phantom-mesh/, not here, but
+# allow ad-hoc runs writing to ./out/)
+out/
+logs/
+*.log
+
+# OS junk
+Thumbs.db
+.AppleDouble
