@@ -8,6 +8,20 @@
 ![license: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
 [![phantom-mesh ecosystem](https://img.shields.io/badge/ecosystem-phantom--mesh-purple)](https://github.com/markl-a/phantom-mesh)
 
+## 30-second demo
+
+[`docs/demo.cast`](docs/demo.cast) — asciinema recording of `phantom_ai_feed.digest --use-stub --force` writing today's RSS digest.
+
+```sh
+# play in a terminal (requires asciinema)
+asciinema play docs/demo.cast
+
+# or view the captured text without any tooling:
+cat docs/demo.cast | jq -r '.[] | select(.[1]=="o") | .[2]'
+```
+
+Self-hosted on purpose — no upload to asciinema.org, no third-party tracking.
+
 ## 一句話 niche
 
 給中文 AI/ML 工程師的「每天 10 分鐘讀完 + 週末自動出面試題複習 + 本機 RAG 可
