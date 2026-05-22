@@ -1,5 +1,7 @@
 # phantom-ai-feed
 
+[![CI](https://github.com/markl-a/phantom-ai-feed/actions/workflows/ci.yml/badge.svg)](https://github.com/markl-a/phantom-ai-feed/actions/workflows/ci.yml)
+
 > 中文 AI 工程師日報 + 面試題自動生成器 + on-prem RAG-ready 知識庫 — 跨裝置一站式資訊代謝管線,招聘對齊中型 AI 新創、副業可走 Substack。
 
 ![status: alpha · Tier 1](https://img.shields.io/badge/status-alpha%20%C2%B7%20Tier%201-orange)
