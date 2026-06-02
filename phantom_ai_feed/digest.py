@@ -63,16 +63,19 @@ def _try_capture_fts5(entry: dict) -> None:
     """Best-effort: append entry to phantom FTS5 via CLI. Silent on failure."""
     if not shutil.which("phantom"):
         return
+    # phantom event capture takes `--kind <k> --text <body>` (verified against the
+    # real CLI). Fold title/summary/link/source into one text blob.
+    text = "\n".join(
+        s for s in (
+            entry.get("title", "").strip(),
+            entry.get("summary", "").strip(),
+            entry.get("link", "").strip(),
+            f"source: {entry.get('source', 'phantom-ai-feed')}",
+        ) if s
+    )[:2000]
     try:
         subprocess.run(
-            [
-                "phantom", "event", "capture",
-                "--kind", "ai-feed",
-                "--source", entry.get("source", "phantom-ai-feed"),
-                "--title", entry.get("title", "")[:200],
-                "--body", entry.get("summary", "")[:2000],
-                "--link", entry.get("link", ""),
-            ],
+            ["phantom", "event", "capture", "--kind", "ai-feed", "--text", text],
             timeout=5,
             check=False,
             stdout=subprocess.DEVNULL,

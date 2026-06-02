@@ -1,9 +1,10 @@
-"""Summarizer: Gemini Flash REST via stdlib `urllib`, with stdlib stub fallback.
+"""Summarizer: prefers `phantom exec` (mesh provider trait), then Gemini REST, then stub.
 
 Design:
+- `summarize_phantom(text, max_words)`         → str via `phantom exec`. Raises on failure.
 - `summarize_gemini(text, api_key, max_words)` → str. Raises on transport error.
-- `summarize_stub(text, max_words)`           → str. Always succeeds; no LLM.
-- `summarize(text, ...)` dispatcher: stub if `use_stub=True` or no API key.
+- `summarize_stub(text, max_words)`            → str. Always succeeds; no LLM.
+- `summarize(text, ...)` dispatcher: phantom exec → Gemini → stub; `use_stub=True` forces stub.
 
 Gemini endpoint reference (REST, no SDK):
   POST https://generativelanguage.googleapis.com/v1beta/models/
@@ -15,6 +16,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import subprocess
 import urllib.error
 import urllib.request
 from typing import Optional
@@ -89,22 +92,56 @@ def summarize_gemini(
         raise urllib.error.URLError(f"unexpected gemini payload shape: {e}") from e
 
 
+def summarize_phantom(text: str, max_words: int = 120, timeout_s: float = 60) -> str:
+    """Summarise via `phantom exec` — reuses phantom's provider trait (multi-provider
+    fallback, cost tracking, unified keys). Raises on missing binary / failure."""
+    if not shutil.which("phantom"):
+        raise RuntimeError("phantom not on PATH")
+    proc = subprocess.run(
+        ["phantom", "exec", _build_prompt(text, max_words)],
+        capture_output=True,
+        text=True,
+        timeout=timeout_s,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.strip()[:200] or "phantom exec failed")
+    out = proc.stdout.strip()
+    if not out:
+        raise RuntimeError("phantom exec returned empty output")
+    return out
+
+
 def summarize(
     text: str,
     *,
     use_stub: bool = False,
     api_key: Optional[str] = None,
     max_words: int = 120,
+    prefer_phantom: bool = True,
 ) -> str:
-    """Dispatcher. Falls back to stub if stub-forced or no key.
+    """Dispatcher. Preference order (each degrades gracefully to the next):
 
-    On Gemini transport error, also degrades to stub rather than crashing
-    the whole digest run.
+    1. ``phantom exec`` — reuse the mesh provider trait (default when phantom is
+       on PATH). Keeps fallback / cost tracking / keys inside phantom.
+    2. direct Gemini REST — if a GEMINI_API_KEY is available.
+    3. stdlib stub — always succeeds.
+
+    ``use_stub=True`` forces the stub regardless (offline / deterministic tests).
     """
+    if use_stub:
+        return summarize_stub(text, max_words=max_words)
+
+    if prefer_phantom and shutil.which("phantom"):
+        try:
+            return summarize_phantom(text, max_words=max_words)
+        except (OSError, subprocess.SubprocessError, RuntimeError):
+            pass  # fall through to Gemini / stub
+
     key = api_key if api_key is not None else os.environ.get("GEMINI_API_KEY", "")
-    if use_stub or not key:
-        return summarize_stub(text, max_words=max_words)
-    try:
-        return summarize_gemini(text, key, max_words=max_words)
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
-        return summarize_stub(text, max_words=max_words)
+    if key:
+        try:
+            return summarize_gemini(text, key, max_words=max_words)
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+            pass
+
+    return summarize_stub(text, max_words=max_words)
