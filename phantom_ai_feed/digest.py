@@ -63,8 +63,10 @@ def _try_capture_fts5(entry: dict) -> None:
     """Best-effort: append entry to phantom FTS5 via CLI. Silent on failure."""
     if not shutil.which("phantom"):
         return
-    # phantom event capture takes `--kind <k> --text <body>` (verified against the
-    # real CLI). Fold title/summary/link/source into one text blob.
+    # phantom event capture takes `--kind <k> --text <body>` (flags verified against
+    # phantom 0.6.0-rc.1). NOTE: `ai-feed` is a custom kind — `recall --kind` only
+    # filters food|focus|habit|text, so retrieve these via full-text
+    # `phantom recall "<query>"`, not a kind filter. Fold fields into one text blob.
     text = "\n".join(
         s for s in (
             entry.get("title", "").strip(),

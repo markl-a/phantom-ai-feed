@@ -47,7 +47,8 @@ electronic newsletter 是手寫;**phantom-ai-feed 是中文 + 本機 + agentic**
 ```bash
 git clone https://github.com/markl-a/phantom-ai-feed
 cd phantom-ai-feed
-pip install -r requirements.txt 2>/dev/null || pip install feedparser requests
+# 無需安裝任何 runtime 套件 — 純 Python 3.11+ 標準函式庫(urllib / xml.etree / tomllib)
+# 只有要跑測試時才需要:pip install pytest
 
 # 無 API key — 用 stub summarizer 跑通
 python -m phantom_ai_feed.digest --use-stub
