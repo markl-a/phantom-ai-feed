@@ -6,6 +6,7 @@ can compose fetch → summarize → write.
 """
 from __future__ import annotations
 
+import os
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -34,6 +35,12 @@ def load_feeds(toml_path: Path | str) -> list[dict]:
 
 
 def _http_get(url: str) -> bytes:
+    # PHANTOM_AI_FEED_OFFLINE=1 forces a genuine no-network mode: skip the fetch
+    # immediately (fetch_all captures it per-feed) instead of hanging on timeouts.
+    if os.environ.get("PHANTOM_AI_FEED_OFFLINE") == "1":
+        raise urllib.error.URLError(
+            "offline mode (PHANTOM_AI_FEED_OFFLINE=1): network fetch skipped"
+        )
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
         return resp.read()
