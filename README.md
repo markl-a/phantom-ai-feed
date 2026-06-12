@@ -60,8 +60,52 @@ python -m phantom_ai_feed.digest
 # 週末面試題(讀本週的 digest)
 python -m phantom_ai_feed.interview_questions --use-stub
 
+# 面試題 eval harness(評分生成的面試題 — coverage / category-mix / 去重)
+python -m phantom_ai_feed.eval --generated <weekly-questions-*.md>
+
 pytest tests/ -v
 ```
+
+## Interview-question eval harness (Phase-2)
+
+`phantom_ai_feed.eval` is a **pure-stdlib** (no GPU, no model download, no
+external deps) proxy harness that scores a batch of *generated* interview
+questions against a **gold set** on three axes:
+
+- **coverage** — token overlap (Jaccard / token-F1) between the generated
+  questions and (a) the week's digest topics and (b) the gold set's topics.
+- **category mix** — distribution across `conceptual` / `system-design` /
+  `debugging` vs. the gold's, reported with an L1 distance.
+- **near-duplicate detection** — pairwise token-Jaccard among the generated
+  questions to flag redundancy.
+
+The harness only **computes and reports** numbers; it does not assert a
+pass/fail verdict (that judgement needs a real gold set).
+
+**Gold-set file format** — JSONL, one object per line:
+
+```jsonl
+{"question": "...", "category": "conceptual", "topic_tags": ["transformers", "attention"]}
+```
+
+```sh
+# defaults to the shipped SYNTHETIC placeholder gold set
+python -m phantom_ai_feed.eval --generated weekly-questions-2026-06-13.md --json
+
+# owner drops in the real ~20-question gold set with ZERO code change:
+python -m phantom_ai_feed.eval --generated <gen.md> --gold path/to/real_gold.jsonl
+```
+
+> **Honesty note (validation status).** The eval harness is **shipped and runs
+> end-to-end**, but only against a **synthetic placeholder gold set**
+> (`tests/fixtures/gold_sample.jsonl`, every entry explicitly labelled
+> `SYNTHETIC PLACEHOLDER`). It is **synthetic-fixture validated only** — the
+> tests assert the metrics are *computed and well-formed* (numbers in range,
+> keys present), **not** that the generated questions clear any quality bar.
+> The real ~20-question gold set is **owner-supplied and drops in via
+> `--gold`**; real-data validation is **owner-blocked** until that file lands.
+> This does **not** claim the questions are validated against a real interview
+> standard.
 
 寫入位置:
 
