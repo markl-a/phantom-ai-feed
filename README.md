@@ -2,7 +2,18 @@
 
 [![CI](https://github.com/markl-a/phantom-ai-feed/actions/workflows/ci.yml/badge.svg)](https://github.com/markl-a/phantom-ai-feed/actions/workflows/ci.yml)
 
-> 中文 AI 工程師日報 + 面試題自動生成器 + on-prem RAG-ready 知識庫 — 跨裝置一站式資訊代謝管線,招聘對齊中型 AI 新創、副業可走 Substack。
+**TL;DR (English):** A stdlib-only Python pipeline that fetches ~8 AI/ML RSS
+feeds, summarizes each entry (Gemini Flash REST, `phantom exec`, or an offline
+extractive stub), and writes dated Markdown digests to `~/.phantom-mesh/`. A
+weekend command turns the week's digests into interview questions. It does not
+implement RAG; it has an optional best-effort hook that shells out to an
+external `phantom` binary (`phantom event capture`) to push entries into
+phantom-mesh's local store — retrieval lives in that separate project, not here.
+Run it with no API key via `--use-stub`. See
+[`docs/sample-digest.md`](docs/sample-digest.md) and
+[`docs/sample-interview-questions.md`](docs/sample-interview-questions.md).
+
+> 中文 AI 工程師日報 + 面試題自動生成器 + 本機知識庫整合 hook — 跨裝置一站式資訊代謝管線,招聘對齊中型 AI 新創、副業可走 Substack。
 
 ![status: alpha · Tier 1](https://img.shields.io/badge/status-alpha%20%C2%B7%20Tier%201-orange)
 ![license: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
@@ -24,19 +35,22 @@ Self-hosted on purpose — no upload to asciinema.org, no third-party tracking.
 
 ## 一句話 niche
 
-給中文 AI/ML 工程師的「每天 10 分鐘讀完 + 週末自動出面試題複習 + 本機 RAG 可
-查」三合一管線。Daily.dev / Feedly+AI 是英文圈 + cloud-only;Substack
-electronic newsletter 是手寫;**phantom-ai-feed 是中文 + 本機 + agentic**
-— RSS 抓取走你的 phantom-mesh,摘要與面試題用可換的 LLM provider,所有資料
-落在 `~/.phantom-mesh/` 不外洩。延續並重定位
+給中文 AI/ML 工程師的「每天 10 分鐘讀完 + 週末自動出面試題複習 + 可選的本機
+知識庫整合 hook」三合一管線。Daily.dev / Feedly+AI 是英文圈 + cloud-only;
+Substack electronic newsletter 是手寫;**phantom-ai-feed 是中文 + 本機 +
+agentic** — 摘要與面試題用可換的 LLM provider,所有資料落在
+`~/.phantom-mesh/` 不外洩;digest 還能 best-effort 呼叫外部 `phantom` binary
+(`phantom event capture`)把條目送進 phantom-mesh 的本機 store(實際的檢索 /
+RAG 在那個專案,本 repo 不含)。延續並重定位
 [markl-a/My-AI-Learning-Notes](https://github.com/markl-a/My-AI-Learning-Notes)
 (19 stars, Jupyter notebook 系列)為 daemon-friendly 的自動化資訊流。
 
 ## Status (2026-05-22)
 
 - ✅ **Tier 1 shipped**: 8 個 AI/ML RSS 來源抓取 + Gemini Flash 摘要(含
-  stub fallback,無 API key 也能跑) + FTS5 寫入路徑 + 週末 LLM 出面試題
-  stub + best-effort `phantom event capture` 整合。
+  stub fallback,無 API key 也能跑) + 週末 LLM 出面試題 stub +
+  best-effort `phantom event capture` 整合 hook(若 PATH 上有 `phantom`
+  binary 才會把條目送進它的 FTS5 store;本 repo 不自帶 FTS5 / 檢索)。
 - 🟡 **Tier 2 next**: SM-2 spaced repetition 排程(複習舊題)、Substack draft
   自動發布 hook、來源信度評分。
 - 🟡 **Tier 3 (M2-M3, ~2026-07)**: 跨來源去重 / 主題聚類、面試題答題與評
@@ -63,6 +77,10 @@ python -m phantom_ai_feed.interview_questions --use-stub
 pytest tests/ -v
 ```
 
+Sample `--use-stub` outputs (synthetic data, regenerable, committed for
+preview): [`docs/sample-digest.md`](docs/sample-digest.md) ·
+[`docs/sample-interview-questions.md`](docs/sample-interview-questions.md).
+
 寫入位置:
 
 ```
@@ -73,8 +91,10 @@ pytest tests/ -v
 ## Architecture (within phantom-mesh ecosystem)
 
 phantom-ai-feed 是 **P1 跨平台連線 + P3 進化網** 的入口層:每天把外部世界的
-AI 新進展寫進你自己的 FTS5 memory,讓 phantom 的 agent 可以回答「上週 RAG
-最新進展是什麼?」。
+AI 新進展寫成本機 Markdown digest,並(若 PATH 上有 `phantom` binary)透過
+`phantom event capture` hook best-effort 送進 phantom-mesh 的 FTS5 store。
+之後讓 phantom 的 agent 回答「上週 RAG 最新進展是什麼?」是 phantom-mesh 那邊
+的檢索能力,不在本 repo;沒有那個 binary 時本 repo 只產出 Markdown。
 
 ```
 8 RSS sources
