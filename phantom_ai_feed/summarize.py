@@ -61,12 +61,20 @@ def summarize_gemini(
     api_key: str,
     max_words: int = 120,
     timeout_s: float = TIMEOUT_S,
+    *,
+    wrap: bool = True,
 ) -> str:
-    """Call Gemini Flash REST. Raises urllib.error.URLError on network failure."""
+    """Call Gemini Flash REST. Raises urllib.error.URLError on network failure.
+
+    ``wrap=True`` (default) wraps ``text`` with the per-article daily-summary
+    preamble. Pass ``wrap=False`` when ``text`` is already a fully-formed prompt
+    (e.g. the weekly/interview runs) to avoid double-wrapping it.
+    """
     if not api_key:
         raise ValueError("GEMINI_API_KEY required for summarize_gemini")
+    prompt = _build_prompt(text, max_words) if wrap else text
     payload = {
-        "contents": [{"parts": [{"text": _build_prompt(text, max_words)}]}],
+        "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
             "temperature": 0.4,
             "maxOutputTokens": max(256, max_words * 4),
@@ -92,13 +100,25 @@ def summarize_gemini(
         raise urllib.error.URLError(f"unexpected gemini payload shape: {e}") from e
 
 
-def summarize_phantom(text: str, max_words: int = 120, timeout_s: float = 60) -> str:
+def summarize_phantom(
+    text: str,
+    max_words: int = 120,
+    timeout_s: float = 60,
+    *,
+    wrap: bool = True,
+) -> str:
     """Summarise via `phantom exec` — reuses phantom's provider trait (multi-provider
-    fallback, cost tracking, unified keys). Raises on missing binary / failure."""
+    fallback, cost tracking, unified keys). Raises on missing binary / failure.
+
+    ``wrap=True`` (default) wraps ``text`` with the per-article daily-summary
+    preamble. Pass ``wrap=False`` when ``text`` is already a fully-formed prompt
+    (e.g. the weekly/interview runs) to avoid double-wrapping it.
+    """
     if not shutil.which("phantom"):
         raise RuntimeError("phantom not on PATH")
+    prompt = _build_prompt(text, max_words) if wrap else text
     proc = subprocess.run(
-        ["phantom", "exec", _build_prompt(text, max_words)],
+        ["phantom", "exec", prompt],
         capture_output=True,
         encoding="utf-8",
         errors="replace",
@@ -119,6 +139,7 @@ def summarize(
     api_key: Optional[str] = None,
     max_words: int = 120,
     prefer_phantom: bool = True,
+    wrap: bool = True,
 ) -> str:
     """Dispatcher. Preference order (each degrades gracefully to the next):
 
@@ -128,20 +149,25 @@ def summarize(
     3. stdlib stub — always succeeds.
 
     ``use_stub=True`` forces the stub regardless (offline / deterministic tests).
+
+    ``wrap=True`` (default) wraps ``text`` with the per-article daily-summary
+    preamble before sending it to an LLM. Pass ``wrap=False`` when ``text`` is
+    already a fully-formed prompt (weekly / interview runs) to prevent the LLM
+    paths from double-wrapping it. The stub never wraps (it is extractive).
     """
     if use_stub:
         return summarize_stub(text, max_words=max_words)
 
     if prefer_phantom and shutil.which("phantom"):
         try:
-            return summarize_phantom(text, max_words=max_words)
+            return summarize_phantom(text, max_words=max_words, wrap=wrap)
         except (OSError, subprocess.SubprocessError, RuntimeError):
             pass  # fall through to Gemini / stub
 
     key = api_key if api_key is not None else os.environ.get("GEMINI_API_KEY", "")
     if key:
         try:
-            return summarize_gemini(text, key, max_words=max_words)
+            return summarize_gemini(text, key, max_words=max_words, wrap=wrap)
         except (urllib.error.URLError, TimeoutError, OSError, ValueError):
             pass
 

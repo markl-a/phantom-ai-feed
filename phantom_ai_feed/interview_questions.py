@@ -86,7 +86,9 @@ def run(
     elif use_stub or not os.environ.get("GEMINI_API_KEY"):
         body = _stub_questions(week)
     else:
-        body = _sum.summarize(_llm_prompt(week), max_words=600)
+        # _llm_prompt(week) is already a fully-formed prompt — do NOT let the
+        # summarizer re-wrap it with the per-article daily-summary preamble.
+        body = _sum.summarize(_llm_prompt(week), max_words=600, wrap=False)
     header = f"# phantom-ai-feed weekly interview questions — week ending {end.isoformat()}\n\n"
     out_path.write_text(header + body + "\n", encoding="utf-8")
     print(f"wrote {out_path}")
