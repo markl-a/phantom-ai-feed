@@ -42,8 +42,11 @@ def _collect_items(
     """Fetch every feed; return (entries, ok_feed_count, total_feed_count).
 
     When ``dedup`` is True (default) the entries are collapsed across sources
-    via ``dedup.dedup_entries`` so a story that appears on arXiv, Reddit, and
-    HN is ranked once — and the surviving representative carries its
+    via ``dedup.cluster_entries`` so a story that appears on arXiv, Reddit, and
+    HN is ranked once. Each cluster's representative is then chosen by
+    ``credibility.pick_representative`` — the MOST-credible member wins, so a
+    research-feed version of a story beats an earlier-seen HN version rather
+    than keeping the first-seen entry. The surviving representative carries its
     ``cluster_size`` / ``cluster_sources`` for downstream credibility weighting.
 
     When ``rank`` is True (default) the (deduped) entries are then ordered
@@ -64,7 +67,21 @@ def _collect_items(
         ok += 1
         entries.extend(payload)
     if dedup:
-        entries = _dedup.dedup_entries(entries)
+        # Cluster cross-source duplicates, then let credibility pick each
+        # cluster's representative — the MOST-credible member (e.g. a research
+        # feed) wins over an earlier-seen but lower-trust source (e.g. HN),
+        # instead of blindly keeping the first-seen entry. The cluster-level
+        # annotations (cluster_size / cluster_sources) are carried onto the
+        # representative for downstream corroboration weighting.
+        representatives: list[dict] = []
+        for cluster in _dedup.cluster_entries(entries):
+            rep = dict(cluster.representative)
+            rep["cluster_size"] = cluster.size
+            rep["cluster_sources"] = cluster.sources
+            representatives.append(
+                _cred.pick_representative(rep, cluster.entries, history=history)
+            )
+        entries = representatives
     if rank:
         entries = _cred.rank_entries(entries, history=history)
     return entries, ok, len(feeds)

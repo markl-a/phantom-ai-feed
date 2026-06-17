@@ -219,6 +219,56 @@ def test_integration_weekly_ranks_credible_sources_first(monkeypatch):
     assert blob.index("Transformer scaling law") < blob.index("Funny meme")
 
 
+def test_integration_weekly_research_version_wins_over_earlier_hn(monkeypatch):
+    """Bug fix: _collect_items must promote the MORE-credible cluster member to
+    representative, not keep the first-seen one. Here HN sees the story FIRST
+    (feed order), but the research feed covers the SAME story (same canonical
+    URL). After collection the surviving representative for that story must be
+    the research-feed version, not the earlier-seen HN one."""
+    from phantom_ai_feed import weekly as _weekly
+    from phantom_ai_feed import fetch as _fetch
+
+    feeds = [
+        {"name": "hacker-news-frontpage", "url": "u1", "category": "community"},
+        {"name": "arxiv-cs-AI", "url": "u2", "category": "research"},
+    ]
+
+    def fake_load(_path):
+        return feeds
+
+    def fake_fetch_all(_feeds, top_n=3):
+        # HN is listed/fetched FIRST, so its version is the first-seen entry of
+        # the cluster — naive first-seen dedup would keep it.
+        return [
+            (feeds[0], [{"title": "Meta releases Llama 3 405B",
+                         "link": "https://ai.meta.com/llama3",
+                         "source": "hacker-news-frontpage",
+                         "category": "community", "summary_excerpt": "hn"}]),
+            (feeds[1], [{"title": "Meta releases Llama 3 405B model",
+                         # SAME canonical URL (tracking param stripped) → clusters
+                         "link": "https://ai.meta.com/llama3?utm_source=hn",
+                         "source": "arxiv-cs-AI",
+                         "category": "research", "summary_excerpt": "arxiv"}]),
+        ]
+
+    monkeypatch.setattr(_fetch, "load_feeds", fake_load)
+    monkeypatch.setattr(_fetch, "fetch_all", fake_fetch_all)
+
+    entries, ok, total = _weekly._collect_items(Path("ignored.toml"), top_n=3)
+    assert ok == 2 and total == 2
+    # The two versions collapsed into ONE cluster...
+    assert len(entries) == 1
+    # ...and the credibility-aware re-pick kept the RESEARCH version, despite
+    # HN being seen first.
+    assert entries[0]["source"] == "arxiv-cs-AI"
+    assert entries[0]["category"] == "research"
+    # cluster annotations survive for downstream weighting: 2 raw entries,
+    # 2 distinct sources.
+    assert entries[0]["cluster_size"] == 2
+    assert set(entries[0]["cluster_sources"]) == {
+        "hacker-news-frontpage", "arxiv-cs-AI"}
+
+
 def test_build_fetch_history_from_results():
     """A helper turns fetch_all-style results into the {source: {ok,err}} map."""
     results = [
