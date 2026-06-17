@@ -47,6 +47,9 @@ CATEGORIES: tuple[str, ...] = ("conceptual", "system-design", "debugging", "othe
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_GOLD = REPO_ROOT / "tests" / "fixtures" / "gold_sample.jsonl"
+# The real, owner-curated ~20-question gold set (P3.1). Pass `--gold` pointing
+# here (or `--real-gold`) to grade against it instead of the synthetic stub.
+REAL_GOLD = REPO_ROOT / "tests" / "fixtures" / "gold_real.jsonl"
 
 # A leading "1." / "2)" / "- " markdown list marker on a generated question.
 _LIST_MARKER = re.compile(r"^\s*(?:\d+[.)]|[-*])\s+")
@@ -283,6 +286,69 @@ def evaluate(
 
 
 # --------------------------------------------------------------------------- #
+# grading — apply CALIBRATED quality bars to a batch (P3.1)
+# --------------------------------------------------------------------------- #
+# Bars calibrated against the real ~20-question gold set
+# (tests/fixtures/gold_real.jsonl). They are intentionally modest: the goal is
+# to catch a *broken* generator (off-topic, one-note, or repetitive), not to
+# enforce a publishable interview standard. Tighten as the real generator and
+# gold set co-evolve.
+MIN_DIGEST_TOPIC_COVERAGE = 0.5   # batch must address >=50% of the week's topics
+MIN_CORE_CATEGORIES = 2           # span >=2 of conceptual/system-design/debugging
+MAX_NEAR_DUPLICATES = 0           # no two generated questions may be near-dups
+
+_CORE_CATEGORIES = ("conceptual", "system-design", "debugging")
+
+
+def grade(
+    generated: list[str],
+    gold: list[dict[str, Any]],
+    *,
+    digest_topics: list[str] | None = None,
+    dup_threshold: float = 0.8,
+) -> dict[str, Any]:
+    """Evaluate a batch AND apply the calibrated quality bars, returning a
+    pass/fail verdict.
+
+    Returns ``{"passed": bool, "bars": {bar_name: bool}, "report": <evaluate>}``.
+    An empty batch fails (nothing to grade). This is the gate the owner can run
+    in CI / a weekly cron to know whether the generator is healthy, rather than
+    eyeballing raw numbers.
+    """
+    report = evaluate(
+        generated, gold, digest_topics=digest_topics, dup_threshold=dup_threshold
+    )
+    if not generated:
+        return {
+            "passed": False,
+            "bars": {
+                "non_empty": False,
+                "digest_topic_coverage": False,
+                "category_breadth": False,
+                "no_near_duplicates": False,
+            },
+            "report": report,
+        }
+
+    cov = report["coverage"]["digest_topic_coverage"]
+    gen_dist = report["category_mix"]["generated_distribution"]
+    core_present = sum(1 for c in _CORE_CATEGORIES if gen_dist.get(c, 0) > 0)
+    n_dups = len(report["near_duplicates"])
+
+    bars = {
+        "non_empty": True,
+        # coverage bar is only meaningful when digest topics were supplied;
+        # with none given there is nothing to cover, so it auto-passes.
+        "digest_topic_coverage": (
+            cov >= MIN_DIGEST_TOPIC_COVERAGE if digest_topics else True
+        ),
+        "category_breadth": core_present >= MIN_CORE_CATEGORIES,
+        "no_near_duplicates": n_dups <= MAX_NEAR_DUPLICATES,
+    }
+    return {"passed": all(bars.values()), "bars": bars, "report": report}
+
+
+# --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
 def _render_text(report: dict[str, Any]) -> str:
@@ -317,6 +383,7 @@ def run_cli(
     digest_path: Path | None,
     *,
     dup_threshold: float = 0.8,
+    do_grade: bool = False,
 ) -> dict[str, Any]:
     gold = load_gold(gold_path)
     if generated_path is not None:
@@ -335,6 +402,12 @@ def run_cli(
     )
     report["gold_source"] = str(gold_path)
     report["gold_is_synthetic"] = Path(gold_path).resolve() == DEFAULT_GOLD.resolve()
+    if do_grade:
+        verdict = grade(
+            generated, gold, digest_topics=digest_topics,
+            dup_threshold=dup_threshold,
+        )
+        report["grade"] = {"passed": verdict["passed"], "bars": verdict["bars"]}
     return report
 
 
@@ -367,17 +440,37 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="optional daily/weekly digest .md to mine topic coverage against.",
     )
+    ap.add_argument(
+        "--real-gold",
+        action="store_true",
+        help="grade against the shipped real ~20-question gold set "
+        "(tests/fixtures/gold_real.jsonl) instead of --gold.",
+    )
+    ap.add_argument(
+        "--grade",
+        action="store_true",
+        help="apply the calibrated quality bars and emit a pass/fail verdict; "
+        "exit code is non-zero when the batch FAILS the bars.",
+    )
     ap.add_argument("--dup-threshold", type=float, default=0.8)
     ap.add_argument("--json", action="store_true", help="emit JSON instead of text")
     args = ap.parse_args(argv)
 
+    gold_path = REAL_GOLD if args.real_gold else args.gold
     report = run_cli(
-        args.generated, args.gold, args.digest, dup_threshold=args.dup_threshold
+        args.generated, gold_path, args.digest,
+        dup_threshold=args.dup_threshold, do_grade=args.grade,
     )
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:
         print(_render_text(report))
+        if "grade" in report:
+            g = report["grade"]
+            print(f"  grade: {'PASS' if g['passed'] else 'FAIL'}  {g['bars']}")
+    # When grading, the exit code reflects the verdict so CI/cron can gate on it.
+    if args.grade and not report.get("grade", {}).get("passed", False):
+        return 1
     return 0
 
 
