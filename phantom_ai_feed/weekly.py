@@ -23,6 +23,7 @@ import shutil
 import sys
 from pathlib import Path
 
+from . import credibility as _cred
 from . import dedup as _dedup
 from . import fetch as _fetch
 from . import summarize as _sum
@@ -36,7 +37,7 @@ MAX_BLOB_CHARS = 16000
 
 
 def _collect_items(
-    feeds_toml: Path, top_n: int, *, dedup: bool = True
+    feeds_toml: Path, top_n: int, *, dedup: bool = True, rank: bool = True
 ) -> tuple[list[dict], int, int]:
     """Fetch every feed; return (entries, ok_feed_count, total_feed_count).
 
@@ -44,11 +45,17 @@ def _collect_items(
     via ``dedup.dedup_entries`` so a story that appears on arXiv, Reddit, and
     HN is ranked once — and the surviving representative carries its
     ``cluster_size`` / ``cluster_sources`` for downstream credibility weighting.
+
+    When ``rank`` is True (default) the (deduped) entries are then ordered
+    most-credible-first via ``credibility.rank_entries``, biased by per-category
+    trust, this run's fetch-success history, and cross-source corroboration, so
+    the most trustworthy/corroborated stories lead the blob handed to the LLM.
     """
     feeds = _fetch.load_feeds(feeds_toml)
     if not feeds:
         raise SystemExit(f"no [[feed]] entries in {feeds_toml}")
     raw = _fetch.fetch_all(feeds, top_n=top_n)
+    history = _cred.build_fetch_history(raw)
     entries: list[dict] = []
     ok = 0
     for _feed, payload in raw:
@@ -58,6 +65,8 @@ def _collect_items(
         entries.extend(payload)
     if dedup:
         entries = _dedup.dedup_entries(entries)
+    if rank:
+        entries = _cred.rank_entries(entries, history=history)
     return entries, ok, len(feeds)
 
 
