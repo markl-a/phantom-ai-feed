@@ -47,3 +47,53 @@ category  = "community"
 name      = "huggingface-blog"
 url       = "https://huggingface.co/blog/feed.xml"
 category  = "blog"
+
+# ---------------------------------------------------------------------------
+# P3.3 — Chinese-language AI sources (category = "zh")
+#
+# Curated zh-CN / zh-TW AI engineering feeds, all reachable without an API key
+# or login and serving RSS/Atom. Tagged `zh` so a run can filter to (or away
+# from) Chinese coverage. Some are served through a third-party RSS bridge
+# (rsshub) because the publisher offers no native feed; flagged `optional` so a
+# strict run can skip them if the bridge is down.
+# ---------------------------------------------------------------------------
+
+[[feed]]
+name      = "jiqizhixin"          # 机器之心 — leading zh-CN AI news
+url       = "https://www.jiqizhixin.com/rss"
+category  = "zh"
+
+[[feed]]
+name      = "paperweekly"         # PaperWeekly — zh-CN paper digests
+url       = "https://rsshub.app/paperweekly"
+category  = "zh"
+optional  = true
+
+[[feed]]
+name      = "huggingface-blog-zh" # HF blog, Chinese translations
+url       = "https://huggingface.co/blog/zh/feed.xml"
+category  = "zh"
+optional  = true
+
+# ---------------------------------------------------------------------------
+# Optional English feeds — extra breadth, flagged `optional = true` so a strict
+# / fast run can skip them and only the core set is required to be reachable.
+# ---------------------------------------------------------------------------
+
+[[feed]]
+name      = "google-research-blog"
+url       = "https://research.google/blog/rss/"
+category  = "blog"
+optional  = true
+
+[[feed]]
+name      = "bair-blog"           # Berkeley AI Research
+url       = "https://bair.berkeley.edu/blog/feed.xml"
+category  = "blog"
+optional  = true
+
+[[feed]]
+name      = "arxiv-cs-LG"         # machine learning (broad)
+url       = "http://export.arxiv.org/rss/cs.LG"
+category  = "research"
+optional  = true
