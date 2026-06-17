@@ -34,7 +34,12 @@ RSS_WITH_HTML = b"""<?xml version="1.0" encoding="UTF-8"?>
   <item>
     <title>Second story</title>
     <link>https://example.com/b</link>
-    <description>Plain &lt;text&gt; no tags &amp; fine.</description>
+    <description>Latency &lt;100ms with Vec&lt;T&gt; &amp; a&lt;b math.</description>
+  </item>
+  <item>
+    <title>Third story</title>
+    <link>https://example.com/c</link>
+    <description>Use the &lt;code&gt; tag inside &lt;p&gt; blocks.</description>
   </item>
 </channel></rss>"""
 
@@ -149,7 +154,7 @@ def test_html_is_stripped_from_excerpts(monkeypatch):
     monkeypatch.setattr(_fetch.time, "sleep", lambda s: None)
 
     out = _fetch.fetch_feed({"name": "fake", "url": "https://e/f"}, top_n=3)
-    assert len(out) == 2
+    assert len(out) == 3
     ex0 = out[0]["summary_excerpt"]
     # No tags survive.
     assert "<" not in ex0 and ">" not in ex0
@@ -159,9 +164,19 @@ def test_html_is_stripped_from_excerpts(monkeypatch):
     assert "38% less" in ex0
     assert "KV-cache & memory" in ex0  # &amp; -> &
 
-    # Second item: entity-encoded angle brackets become literal text, kept.
+    # Second item: NON-tag-name angle expressions survive (the allowlist's real
+    # value). ``<100ms``, ``Vec<T>``, ``a<b`` are kept because the char after
+    # ``<`` is not a known HTML tag name.
     ex1 = out[1]["summary_excerpt"]
-    assert ex1 == "Plain <text> no tags & fine."
+    assert ex1 == "Latency <100ms with Vec<T> & a<b math."
+
+    # Third item: escaped prose that uses a real HTML tag NAME (&lt;code&gt;,
+    # &lt;p&gt;) is INDISTINGUISHABLE from markup once ET decodes it, so it IS
+    # stripped. This is the honest, documented behavior (see strip_html docstring
+    # and the _HTML_TAGS note) — NOT a claim that all escaped prose survives.
+    ex2 = out[2]["summary_excerpt"]
+    assert ex2 == "Use the tag inside blocks."
+    assert "<code>" not in ex2 and "<p>" not in ex2
 
     # Titles are also entity-decoded.
     assert out[0]["title"] == "New & faster transformer"
@@ -172,6 +187,29 @@ def test_strip_html_helper_collapses_whitespace():
     cleaned = _fetch.strip_html(raw)
     assert "<" not in cleaned
     assert cleaned == "Hello world again"
+
+
+def test_strip_html_allowlisted_tag_name_prose_is_stripped():
+    """ET-decoded input that uses a real HTML tag NAME is treated as markup and
+    removed — the honest, documented limit. (Previously this case was masked by
+    a test that only used the non-tag word ``<text>``.)
+
+    ``strip_html`` is called with text as ElementTree's ``.text`` would yield it:
+    XML entities ALREADY decoded, so ``&lt;code&gt;`` arrives as ``<code>`` —
+    indistinguishable from genuine ``<code>`` markup.
+    """
+    # Allowlisted tag names -> stripped (cannot be told apart from markup).
+    assert _fetch.strip_html("Use the <code> tag in <p> blocks.") == \
+        "Use the tag in blocks."
+    assert _fetch.strip_html("<time> and <table> words") == "and words"
+
+
+def test_strip_html_non_tag_angle_expressions_survive():
+    """The allowlist's genuine value: angle expressions whose first token is not
+    a known tag name are preserved even after ET has decoded the entities."""
+    assert _fetch.strip_html("if a < b and c > d") == "if a < b and c > d"
+    assert _fetch.strip_html("latency <100ms target") == "latency <100ms target"
+    assert _fetch.strip_html("Vec<T> in Rust") == "Vec<T> in Rust"
 
 
 # --------------------------------------------------------------------------- #

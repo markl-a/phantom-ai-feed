@@ -29,10 +29,21 @@ BACKOFF_CAP_S = 8.0
 
 _WS_RE = re.compile(r"\s+")
 
-# Common HTML/XHTML tags we strip from feed bodies. Restricting to an allowlist
-# (rather than "anything between < and >") means prose angle-brackets that the
-# feed escaped as &lt;text&gt; — and which ET has already decoded to <text> —
-# are preserved as literal text instead of being mistaken for markup.
+# Common HTML/XHTML tags we strip from feed bodies. We restrict to an allowlist
+# (rather than "anything between < and >") so that NON-tag angle expressions
+# survive: ``a < b``, ``latency <100ms``, ``Vec<T>`` etc. are left intact because
+# the word after ``<`` is not a known tag name.
+#
+# IMPORTANT (the un-fixable ambiguity): RSS/Atom feed bodies are HTML by
+# convention (RSS <description> "may contain HTML"; Atom uses CDATA or
+# type="html"). ElementTree's ``.text`` collapses BOTH real CDATA/entity markup
+# AND author-escaped literal prose into the same decoded string — e.g. real
+# ``<![CDATA[<code>x</code>]]>`` and escaped prose ``&lt;code&gt;`` both arrive
+# here as the literal ``<code>``, with no marker of which was which. We therefore
+# cannot reliably tell "was markup" from "was escaped prose" for an allowlisted
+# tag NAME, and we resolve the tie toward the common case: treat it as markup and
+# strip it. So escaped prose that happens to use a real HTML tag name (``<code>``,
+# ``<p>``, …) IS removed; only non-tag-name angle expressions are preserved.
 _HTML_TAGS = (
     "a|abbr|article|aside|b|blockquote|br|caption|cite|code|col|colgroup|dd|"
     "del|details|div|dl|dt|em|figcaption|figure|font|footer|h1|h2|h3|h4|h5|h6|"
@@ -48,13 +59,20 @@ _TAG_RE = re.compile(
 
 
 def strip_html(raw: str) -> str:
-    """Strip HTML tags and unescape entities from a feed body, collapsing
-    whitespace. Pure stdlib (regex + html.unescape) — feed bodies are short and
-    well-formed enough that a full parser is overkill.
+    """Strip HTML markup and unescape entities from an HTML-format feed body,
+    collapsing whitespace. Pure stdlib (regex + html.unescape) — feed bodies are
+    short and well-formed enough that a full parser is overkill.
 
-    Tags are matched against a known-HTML-tag allowlist so that genuine prose
-    angle-brackets (e.g. an escaped ``&lt;text&gt;`` that ET has decoded to the
-    literal ``<text>``) survive instead of being eaten as markup.
+    Scope: RSS/Atom bodies are HTML by convention, so this removes HTML markup.
+    Tags are matched against a known-HTML-tag allowlist, which preserves NON-tag
+    angle expressions — ``a < b``, ``latency <100ms``, ``Vec<T>`` survive because
+    the word after ``<`` is not a known tag name.
+
+    It does NOT promise that arbitrary escaped prose survives. ElementTree
+    decodes ``&lt;code&gt;`` to the literal ``<code>``, which is then
+    indistinguishable from real ``<code>`` markup (e.g. from a CDATA body); such
+    allowlisted tag-NAME words ARE stripped. This is the honest, irreducible
+    limit of cleaning already-decoded text — see the ``_HTML_TAGS`` note above.
 
     Order matters: drop tags first, THEN unescape, so any entity inside the
     tag-stripped remainder (``&amp;`` → ``&``, ``&nbsp;`` → space) is resolved
