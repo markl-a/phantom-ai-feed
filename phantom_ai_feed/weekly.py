@@ -23,6 +23,7 @@ import shutil
 import sys
 from pathlib import Path
 
+from . import dedup as _dedup
 from . import fetch as _fetch
 from . import summarize as _sum
 
@@ -35,9 +36,15 @@ MAX_BLOB_CHARS = 16000
 
 
 def _collect_items(
-    feeds_toml: Path, top_n: int
+    feeds_toml: Path, top_n: int, *, dedup: bool = True
 ) -> tuple[list[dict], int, int]:
-    """Fetch every feed; return (entries, ok_feed_count, total_feed_count)."""
+    """Fetch every feed; return (entries, ok_feed_count, total_feed_count).
+
+    When ``dedup`` is True (default) the entries are collapsed across sources
+    via ``dedup.dedup_entries`` so a story that appears on arXiv, Reddit, and
+    HN is ranked once — and the surviving representative carries its
+    ``cluster_size`` / ``cluster_sources`` for downstream credibility weighting.
+    """
     feeds = _fetch.load_feeds(feeds_toml)
     if not feeds:
         raise SystemExit(f"no [[feed]] entries in {feeds_toml}")
@@ -49,6 +56,8 @@ def _collect_items(
             continue
         ok += 1
         entries.extend(payload)
+    if dedup:
+        entries = _dedup.dedup_entries(entries)
     return entries, ok, len(feeds)
 
 
