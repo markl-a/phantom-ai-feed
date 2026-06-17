@@ -159,8 +159,9 @@ def run(
     use_stub: bool = False,
     top_n: int = 3,
     force: bool = False,
+    strict: bool = False,
 ) -> Path:
-    feeds = _fetch.load_feeds(feeds_toml)
+    feeds = _fetch.filter_feeds(_fetch.load_feeds(feeds_toml), strict=strict)
     if not feeds:
         raise SystemExit(f"no [[feed]] entries in {feeds_toml}")
 
@@ -210,6 +211,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--top-n", type=int, default=3)
     ap.add_argument("--force", action="store_true",
                     help="overwrite today's digest if present")
+    ap.add_argument("--strict", action="store_true",
+                    help="skip feeds flagged optional=true in feeds.toml")
     args = ap.parse_args(argv)
     run(
         feeds_toml=args.feeds,
@@ -217,6 +220,7 @@ def main(argv: list[str] | None = None) -> int:
         use_stub=args.use_stub,
         top_n=args.top_n,
         force=args.force,
+        strict=args.strict,
     )
     return 0
 

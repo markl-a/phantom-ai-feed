@@ -100,6 +100,19 @@ def load_feeds(toml_path: Path | str) -> list[dict]:
     return list(cfg.get("feed", []))
 
 
+def filter_feeds(feeds: Iterable[dict], *, strict: bool = False) -> list[dict]:
+    """Apply CLI feed-selection policy.
+
+    When ``strict`` is True, drop feeds flagged ``optional = true`` in
+    feeds.toml (e.g. third-party RSS-bridge sources that may be down). The
+    ``optional`` flag previously had no production consumer; this is where a
+    ``--strict`` run honours it. Default keeps every feed (backward compatible).
+    """
+    if not strict:
+        return list(feeds)
+    return [f for f in feeds if f.get("optional") is not True]
+
+
 def _raw_http_get(url: str) -> bytes:
     """The genuine single network fetch (no retries). Patched out in tests."""
     # PHANTOM_AI_FEED_OFFLINE=1 forces a genuine no-network mode: skip the fetch

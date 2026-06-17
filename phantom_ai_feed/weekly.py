@@ -37,7 +37,8 @@ MAX_BLOB_CHARS = 16000
 
 
 def _collect_items(
-    feeds_toml: Path, top_n: int, *, dedup: bool = True, rank: bool = True
+    feeds_toml: Path, top_n: int, *, dedup: bool = True, rank: bool = True,
+    strict: bool = False,
 ) -> tuple[list[dict], int, int]:
     """Fetch every feed; return (entries, ok_feed_count, total_feed_count).
 
@@ -54,7 +55,7 @@ def _collect_items(
     trust, this run's fetch-success history, and cross-source corroboration, so
     the most trustworthy/corroborated stories lead the blob handed to the LLM.
     """
-    feeds = _fetch.load_feeds(feeds_toml)
+    feeds = _fetch.filter_feeds(_fetch.load_feeds(feeds_toml), strict=strict)
     if not feeds:
         raise SystemExit(f"no [[feed]] entries in {feeds_toml}")
     raw = _fetch.fetch_all(feeds, top_n=top_n)
@@ -175,6 +176,7 @@ def run(
     use_stub: bool = False,
     top_n: int = DEFAULT_TOP_N,
     force: bool = False,
+    strict: bool = False,
 ) -> Path:
     today = _dt.date.today()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -183,7 +185,7 @@ def run(
         print(f"already wrote {out_path} — skipping (idempotent)")
         return out_path
 
-    entries, ok, total = _collect_items(feeds_toml, top_n)
+    entries, ok, total = _collect_items(feeds_toml, top_n, strict=strict)
     if not entries:
         raise SystemExit("no entries fetched from any feed — aborting")
 
@@ -211,6 +213,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="entries fetched per feed (wider than daily)")
     ap.add_argument("--force", action="store_true",
                     help="overwrite this week's digest if present")
+    ap.add_argument("--strict", action="store_true",
+                    help="skip feeds flagged optional=true in feeds.toml")
     args = ap.parse_args(argv)
     run(
         feeds_toml=args.feeds,
@@ -218,6 +222,7 @@ def main(argv: list[str] | None = None) -> int:
         use_stub=args.use_stub,
         top_n=args.top_n,
         force=args.force,
+        strict=args.strict,
     )
     return 0
 
