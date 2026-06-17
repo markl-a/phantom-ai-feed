@@ -140,6 +140,36 @@ def test_dedup_empty_input():
     assert _dd.cluster_entries([]) == []
 
 
+def test_empty_titles_with_different_urls_do_not_merge():
+    """Regression: two entries with EMPTY titles and DIFFERENT urls must NOT
+    cluster. title_similarity('', '') is 1.0 (both empty == identical), so the
+    title path must require real content on both sides before it can match."""
+    a = {"title": "", "link": "https://a.com/1", "source": "s1",
+         "category": "blog", "summary_excerpt": ""}
+    b = {"title": "", "link": "https://b.com/2", "source": "s2",
+         "category": "blog", "summary_excerpt": ""}
+    clusters = _dd.cluster_entries([a, b])
+    assert len(clusters) == 2, "empty-title entries must not collapse together"
+
+
+def test_one_empty_one_present_title_different_urls_do_not_merge():
+    a = {"title": "Some real story", "link": "https://a.com/1", "source": "s1",
+         "category": "blog", "summary_excerpt": ""}
+    b = {"title": "", "link": "https://b.com/2", "source": "s2",
+         "category": "blog", "summary_excerpt": ""}
+    assert len(_dd.cluster_entries([a, b])) == 2
+
+
+def test_empty_titles_same_url_still_merge():
+    """Empty titles but the SAME url is still a legit duplicate (URL identity
+    path), so those DO collapse."""
+    a = {"title": "", "link": "https://a.com/1", "source": "s1",
+         "category": "blog", "summary_excerpt": ""}
+    b = {"title": "", "link": "https://a.com/1", "source": "s2",
+         "category": "community", "summary_excerpt": ""}
+    assert len(_dd.cluster_entries([a, b])) == 1
+
+
 # --------------------------------------------------------------------------- #
 # integration: weekly blob shrinks after dedup                               #
 # --------------------------------------------------------------------------- #

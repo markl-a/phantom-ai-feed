@@ -160,7 +160,14 @@ def _same_story(
     ua, ub = normalize_url(a.get("link")), normalize_url(b.get("link"))
     if ua and ub and ua == ub:
         return True
-    return title_similarity(a.get("title", ""), b.get("title", "")) >= title_threshold
+    # Title path only fires when BOTH titles carry real content tokens.
+    # title_similarity('', '') is 1.0 (two empty sets are "identical"), which
+    # would otherwise false-merge any two empty-title entries with differing
+    # URLs — so require non-empty token sets on both sides first.
+    ta, tb = _title_tokens(a.get("title", "")), _title_tokens(b.get("title", ""))
+    if not ta or not tb:
+        return False
+    return (len(ta & tb) / len(ta | tb)) >= title_threshold
 
 
 def cluster_entries(
