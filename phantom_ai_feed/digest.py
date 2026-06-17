@@ -14,11 +14,10 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
+from . import capture as _capture
 from . import fetch as _fetch
 from . import summarize as _sum
 
@@ -83,32 +82,15 @@ def _render(date: _dt.date, sections: list[tuple[dict, list[dict] | str]], *, st
     return "\n".join(lines)
 
 
-def _try_capture_fts5(entry: dict) -> None:
-    """Best-effort: append entry to phantom FTS5 via CLI. Silent on failure."""
-    if not shutil.which("phantom"):
-        return
-    # phantom event capture takes `--kind <k> --text <body>` (flags verified against
-    # phantom 0.6.0-rc.1). NOTE: `ai-feed` is a custom kind — `recall --kind` only
-    # filters food|focus|habit|text, so retrieve these via full-text
-    # `phantom recall "<query>"`, not a kind filter. Fold fields into one text blob.
-    text = "\n".join(
-        s for s in (
-            entry.get("title", "").strip(),
-            entry.get("summary", "").strip(),
-            entry.get("link", "").strip(),
-            f"source: {entry.get('source', 'phantom-ai-feed')}",
-        ) if s
-    )[:2000]
-    try:
-        subprocess.run(
-            ["phantom", "event", "capture", "--kind", "ai-feed", "--text", text],
-            timeout=5,
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except (OSError, subprocess.SubprocessError):
-        pass
+def _try_capture_fts5(entry: dict) -> "_capture.CaptureResult":
+    """Best-effort: append entry to phantom FTS5 via the capture adapter.
+
+    Delegates to ``phantom_ai_feed.capture`` (unit-tested 3-branch CLI seam).
+    Never raises — a missing binary or a capture failure is returned as a
+    ``CaptureResult`` and otherwise ignored, so a daily run still writes its
+    Markdown even when phantom is unavailable.
+    """
+    return _capture.capture_entry(entry)
 
 
 def run(

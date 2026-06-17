@@ -23,6 +23,8 @@ import shutil
 import sys
 from pathlib import Path
 
+from . import credibility as _cred
+from . import dedup as _dedup
 from . import fetch as _fetch
 from . import summarize as _sum
 
@@ -35,13 +37,28 @@ MAX_BLOB_CHARS = 16000
 
 
 def _collect_items(
-    feeds_toml: Path, top_n: int
+    feeds_toml: Path, top_n: int, *, dedup: bool = True, rank: bool = True
 ) -> tuple[list[dict], int, int]:
-    """Fetch every feed; return (entries, ok_feed_count, total_feed_count)."""
+    """Fetch every feed; return (entries, ok_feed_count, total_feed_count).
+
+    When ``dedup`` is True (default) the entries are collapsed across sources
+    via ``dedup.cluster_entries`` so a story that appears on arXiv, Reddit, and
+    HN is ranked once. Each cluster's representative is then chosen by
+    ``credibility.pick_representative`` — the MOST-credible member wins, so a
+    research-feed version of a story beats an earlier-seen HN version rather
+    than keeping the first-seen entry. The surviving representative carries its
+    ``cluster_size`` / ``cluster_sources`` for downstream credibility weighting.
+
+    When ``rank`` is True (default) the (deduped) entries are then ordered
+    most-credible-first via ``credibility.rank_entries``, biased by per-category
+    trust, this run's fetch-success history, and cross-source corroboration, so
+    the most trustworthy/corroborated stories lead the blob handed to the LLM.
+    """
     feeds = _fetch.load_feeds(feeds_toml)
     if not feeds:
         raise SystemExit(f"no [[feed]] entries in {feeds_toml}")
     raw = _fetch.fetch_all(feeds, top_n=top_n)
+    history = _cred.build_fetch_history(raw)
     entries: list[dict] = []
     ok = 0
     for _feed, payload in raw:
@@ -49,6 +66,24 @@ def _collect_items(
             continue
         ok += 1
         entries.extend(payload)
+    if dedup:
+        # Cluster cross-source duplicates, then let credibility pick each
+        # cluster's representative — the MOST-credible member (e.g. a research
+        # feed) wins over an earlier-seen but lower-trust source (e.g. HN),
+        # instead of blindly keeping the first-seen entry. The cluster-level
+        # annotations (cluster_size / cluster_sources) are carried onto the
+        # representative for downstream corroboration weighting.
+        representatives: list[dict] = []
+        for cluster in _dedup.cluster_entries(entries):
+            rep = dict(cluster.representative)
+            rep["cluster_size"] = cluster.size
+            rep["cluster_sources"] = cluster.sources
+            representatives.append(
+                _cred.pick_representative(rep, cluster.entries, history=history)
+            )
+        entries = representatives
+    if rank:
+        entries = _cred.rank_entries(entries, history=history)
     return entries, ok, len(feeds)
 
 
