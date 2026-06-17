@@ -86,6 +86,46 @@ def test_more_sources_raises_score():
     assert three > one
 
 
+def test_corroboration_counts_distinct_sources_not_raw_dups():
+    """Corroboration is a CROSS-source signal: two near-dup entries from the
+    SAME source give a 1-distinct-source bonus, not 2. A real 2-distinct-source
+    cluster of the same raw size must outscore the same-source-dup cluster."""
+    # 2 raw entries, but both from 'hn' → only 1 distinct source.
+    same_source = _cred.score_entry(
+        _entry("a", "hn", "community", cluster_size=2,
+               cluster_sources=["hn", "hn"])
+    )
+    # 1 raw entry from a single source → 1 distinct source.
+    single = _cred.score_entry(
+        _entry("a", "hn", "community", cluster_size=1,
+               cluster_sources=["hn"])
+    )
+    # Same-source dups must NOT inflate corroboration above the single source.
+    assert same_source == single
+
+    # 2 raw entries from 2 DISTINCT sources → genuine corroboration, higher.
+    two_distinct = _cred.score_entry(
+        _entry("a", "hn", "community", cluster_size=2,
+               cluster_sources=["hn", "arxiv-cs-AI"])
+    )
+    assert two_distinct > same_source
+
+
+def test_corroboration_source_count_helper_dedups_same_source():
+    """The distinct-source helper collapses repeated sources and falls back to
+    cluster_size only when cluster_sources is absent."""
+    assert _cred._corroboration_source_count(
+        {"cluster_sources": ["hn", "hn", "hn"]}
+    ) == 1
+    assert _cred._corroboration_source_count(
+        {"cluster_sources": ["hn", "arxiv-cs-AI"]}
+    ) == 2
+    # no cluster_sources key → fall back to raw cluster_size
+    assert _cred._corroboration_source_count({"cluster_size": 3}) == 3
+    # empty cluster_sources → clamped to a floor of 1 (never log(0))
+    assert _cred._corroboration_source_count({"cluster_sources": []}) == 1
+
+
 # --------------------------------------------------------------------------- #
 # ranking                                                                     #
 # --------------------------------------------------------------------------- #

@@ -15,9 +15,12 @@ result stays interpretable):
   2. **fetch-success history** — ``success_ratio`` of a source's recent
      fetches; a source that errors a lot is trusted less. Unseen sources get a
      neutral prior (NOT zero — absence of evidence isn't evidence of failure).
-  3. **cross-source corroboration** — ``cluster_size`` from ``dedup``: a story
-     independently covered by several sources is more important, so a larger
-     cluster lifts the score (with diminishing returns via log).
+  3. **cross-source corroboration** — the count of DISTINCT
+     ``cluster_sources`` from ``dedup``: a story independently covered by
+     several distinct sources is more important, so a larger distinct-source
+     count lifts the score (with diminishing returns via log). Near-dup copies
+     from the SAME source do NOT inflate this — corroboration is a cross-source
+     signal, not a raw copy-count.
 
 Everything here is a deliberately simple, auditable heuristic — pure stdlib,
 no network, no learned weights. Tune the constants below to taste.
@@ -67,13 +70,20 @@ def success_ratio(counts: Optional[Mapping[str, int]]) -> float:
     return ok / total
 
 
-def _corroboration_bonus(cluster_size: int) -> float:
+def _corroboration_source_count(entry: Mapping[str, Any]) -> int:
+    """Distinct source count for corroboration, falling back to cluster size."""
+    if "cluster_sources" in entry:
+        return max(1, len(set(entry.get("cluster_sources") or [])))
+    return max(1, int(entry.get("cluster_size", 1) or 1))
+
+
+def _corroboration_bonus(source_count: int) -> float:
     """Diminishing-returns bonus for a story covered by multiple sources.
 
-    size 1 → 0.0, size 2 → ~0.69, size 4 → ~1.10. log keeps a viral story from
-    dominating purely on copy count.
+    count 1 → 0.0, count 2 → ~0.69, count 4 → ~1.10. log keeps a viral story
+    from dominating purely on copy count.
     """
-    return math.log(max(1, int(cluster_size)))
+    return math.log(max(1, int(source_count)))
 
 
 def score_entry(
@@ -91,7 +101,7 @@ def score_entry(
     src = entry.get("source", "")
     src_counts = (history or {}).get(src)
     hist = success_ratio(src_counts)
-    corro = _corroboration_bonus(entry.get("cluster_size", 1) or 1)
+    corro = _corroboration_bonus(_corroboration_source_count(entry))
     return round(
         W_CATEGORY * cat + W_HISTORY * hist + W_CORROBORATION * corro, 6
     )
