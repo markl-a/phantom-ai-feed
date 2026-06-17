@@ -100,6 +100,19 @@ def load_feeds(toml_path: Path | str) -> list[dict]:
     return list(cfg.get("feed", []))
 
 
+def filter_feeds(feeds: Iterable[dict], *, strict: bool = False) -> list[dict]:
+    """Apply CLI feed-selection policy.
+
+    When ``strict`` is True, drop feeds flagged ``optional = true`` in
+    feeds.toml (e.g. third-party RSS-bridge sources that may be down). The
+    ``optional`` flag previously had no production consumer; this is where a
+    ``--strict`` run honours it. Default keeps every feed (backward compatible).
+    """
+    if not strict:
+        return list(feeds)
+    return [f for f in feeds if f.get("optional") is not True]
+
+
 def _raw_http_get(url: str) -> bytes:
     """The genuine single network fetch (no retries). Patched out in tests."""
     # PHANTOM_AI_FEED_OFFLINE=1 forces a genuine no-network mode: skip the fetch
@@ -150,9 +163,19 @@ def _http_get(url: str, *, max_retries: int = MAX_RETRIES) -> bytes:
 
 
 def _text(el: ET.Element | None) -> str:
-    if el is None or el.text is None:
+    """All text under ``el``, including inline-child and tail text.
+
+    Feed bodies/titles in the wild often carry *well-formed* inline HTML that is
+    neither CDATA-wrapped nor entity-escaped (e.g. ``A <b>70B</b> model``).
+    ElementTree parses ``<b>`` as a CHILD element, so reading only ``el.text``
+    would return just ``"A "`` and silently EAT every word after the first
+    child. ``itertext()`` walks the element + all descendants + their tails, so
+    the real prose survives; ``strip_html`` (applied by ``_title``/``_body``)
+    then removes any literal tag markup that came in via CDATA/escaping.
+    """
+    if el is None:
         return ""
-    return " ".join(el.text.split())
+    return " ".join("".join(el.itertext()).split())
 
 
 def _title(el: ET.Element | None) -> str:

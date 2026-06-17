@@ -18,8 +18,13 @@ import sys
 from pathlib import Path
 
 from . import capture as _capture
+from . import credibility as _cred
+from . import dedup as _dedup
 from . import fetch as _fetch
 from . import summarize as _sum
+
+# How many credibility-ranked picks to surface at the top of the daily digest.
+TOP_PICKS_N = 5
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_FEEDS = REPO_ROOT / "sources" / "feeds.toml"
@@ -46,7 +51,59 @@ def _status_counts(
     return ok, empty, error, len(sections)
 
 
-def _render(date: _dt.date, sections: list[tuple[dict, list[dict] | str]], *, stub: bool) -> str:
+def _rank_top_picks(
+    sections: list[tuple[dict, list[dict] | str]],
+    history: dict[str, dict[str, int]],
+    *,
+    top_n: int = TOP_PICKS_N,
+) -> list[dict]:
+    """Collapse cross-source duplicates across ALL feeds, then credibility-rank.
+
+    Wires ``dedup`` + ``credibility`` into the daily CLI path (previously they
+    were reachable only from the weekly run / unit tests). A story that appears
+    on, say, both an arXiv and a Hacker News feed is clustered to ONE entry that
+    carries its corroboration count, then the survivors are ordered most-credible
+    first so the day's most trustworthy/corroborated stories lead.
+    """
+    flat: list[dict] = []
+    for _feed, payload in sections:
+        if isinstance(payload, str):
+            continue
+        flat.extend(payload)
+    deduped = _dedup.dedup_entries(flat)
+    ranked = _cred.rank_entries(deduped, history=history)
+    return ranked[:top_n]
+
+
+def _render_top_picks(picks: list[dict]) -> list[str]:
+    """Render the credibility-ranked, deduped 'Top picks' block (Markdown)."""
+    lines = ["## 🏆 Top picks (credibility-ranked, deduped)", ""]
+    if not picks:
+        lines += ["_(no entries to rank)_", ""]
+        return lines
+    for i, e in enumerate(picks, 1):
+        title = e.get("title") or "(untitled)"
+        link = e.get("link") or ""
+        cat = e.get("category", "misc")
+        cred = e.get("credibility", 0.0)
+        sources = e.get("cluster_sources") or (
+            [e["source"]] if e.get("source") else []
+        )
+        n = len(sources) or int(e.get("cluster_size", 1) or 1)
+        corro = f"{n} source{'s' if n != 1 else ''}"
+        if sources:
+            corro += ": " + ", ".join(sources)
+        lines.append(
+            f"{i}. **[{title}]({link})** — _{cat}_ · "
+            f"credibility {cred} · corroborated by {corro}"
+        )
+        if e.get("summary"):
+            lines.append(f"   - {e['summary']}")
+    lines.append("")
+    return lines
+
+
+def _render(date: _dt.date, sections: list[tuple[dict, list[dict] | str]], *, stub: bool, top_picks: list[dict] | None = None) -> str:
     badge = "stub-summarizer" if stub else "gemini-flash"
     ok, empty, error, total = _status_counts(sections)
     lines = [
@@ -58,6 +115,8 @@ def _render(date: _dt.date, sections: list[tuple[dict, list[dict] | str]], *, st
         f"({ok} ok · {empty} empty · {error} error)",
         "",
     ]
+    if top_picks is not None:
+        lines.extend(_render_top_picks(top_picks))
     for feed, payload in sections:
         lines.append(
             f"## {feed['name']}  _(category: {feed.get('category', 'misc')})_"
@@ -100,8 +159,9 @@ def run(
     use_stub: bool = False,
     top_n: int = 3,
     force: bool = False,
+    strict: bool = False,
 ) -> Path:
-    feeds = _fetch.load_feeds(feeds_toml)
+    feeds = _fetch.filter_feeds(_fetch.load_feeds(feeds_toml), strict=strict)
     if not feeds:
         raise SystemExit(f"no [[feed]] entries in {feeds_toml}")
 
@@ -113,6 +173,7 @@ def run(
         return out_path
 
     raw = _fetch.fetch_all(feeds, top_n=top_n)
+    history = _cred.build_fetch_history(raw)
     sections: list[tuple[dict, list[dict] | str]] = []
     for feed, payload in raw:
         if isinstance(payload, Exception):
@@ -128,7 +189,11 @@ def run(
             enriched.append(entry)
         sections.append((feed, enriched))
 
-    out_path.write_text(_render(today, sections, stub=use_stub), encoding="utf-8")
+    top_picks = _rank_top_picks(sections, history)
+    out_path.write_text(
+        _render(today, sections, stub=use_stub, top_picks=top_picks),
+        encoding="utf-8",
+    )
     ok, empty, error, total = _status_counts(sections)
     print(
         f"wrote {out_path} ({ok}/{total} feeds OK; "
@@ -146,6 +211,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--top-n", type=int, default=3)
     ap.add_argument("--force", action="store_true",
                     help="overwrite today's digest if present")
+    ap.add_argument("--strict", action="store_true",
+                    help="skip feeds flagged optional=true in feeds.toml")
     args = ap.parse_args(argv)
     run(
         feeds_toml=args.feeds,
@@ -153,6 +220,7 @@ def main(argv: list[str] | None = None) -> int:
         use_stub=args.use_stub,
         top_n=args.top_n,
         force=args.force,
+        strict=args.strict,
     )
     return 0
 
