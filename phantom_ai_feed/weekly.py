@@ -88,7 +88,8 @@ def _analyze(blob: str, *, use_stub: bool) -> tuple[str, str]:
     if use_stub or not shutil.which("phantom"):
         return _sum.summarize_stub(blob, max_words=400), "stub-extractive"
     try:
-        body = _sum.summarize_phantom(prompt, max_words=700, timeout_s=180)
+        # prompt is already fully formed — do NOT re-wrap with the daily preamble.
+        body = _sum.summarize_phantom(prompt, max_words=700, timeout_s=180, wrap=False)
         return body, "phantom-exec"
     except (OSError, RuntimeError) as e:
         # Honest degradation: never silently fake LLM output.
