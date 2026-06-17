@@ -150,9 +150,19 @@ def _http_get(url: str, *, max_retries: int = MAX_RETRIES) -> bytes:
 
 
 def _text(el: ET.Element | None) -> str:
-    if el is None or el.text is None:
+    """All text under ``el``, including inline-child and tail text.
+
+    Feed bodies/titles in the wild often carry *well-formed* inline HTML that is
+    neither CDATA-wrapped nor entity-escaped (e.g. ``A <b>70B</b> model``).
+    ElementTree parses ``<b>`` as a CHILD element, so reading only ``el.text``
+    would return just ``"A "`` and silently EAT every word after the first
+    child. ``itertext()`` walks the element + all descendants + their tails, so
+    the real prose survives; ``strip_html`` (applied by ``_title``/``_body``)
+    then removes any literal tag markup that came in via CDATA/escaping.
+    """
+    if el is None:
         return ""
-    return " ".join(el.text.split())
+    return " ".join("".join(el.itertext()).split())
 
 
 def _title(el: ET.Element | None) -> str:
