@@ -35,6 +35,13 @@ DEFAULT_TOP_N = 6
 # Cap the blob we hand the model so a single exec stays bounded.
 MAX_BLOB_CHARS = 16000
 
+# Sentinel comment markers wrapping the internal ranking provenance block. The
+# weekly digest is meant to SHOW this (credibility scores / corroboration), but
+# downstream reader-facing consumers (newsletter.py) strip anything between
+# these markers so raw internal scoring never faces subscribers.
+PROVENANCE_START = "<!-- phantom-ai-feed:provenance:start -->"
+PROVENANCE_END = "<!-- phantom-ai-feed:provenance:end -->"
+
 
 def _collect_items(
     feeds_toml: Path, top_n: int, *, dedup: bool = True, rank: bool = True,
@@ -98,6 +105,7 @@ def _render_ranked_sources(entries: list[dict]) -> str:
     just the unit tests — shows WHY each story was ranked where it was.
     """
     lines = [
+        PROVENANCE_START,
         "## 來源信度 / Ranked sources",
         "",
         "_依可信度排序(類別信度 + 抓取成功率 + 跨來源佐證);"
@@ -117,6 +125,7 @@ def _render_ranked_sources(entries: list[dict]) -> str:
         lines.append(
             f"{i}. **{title}** — credibility {cred} · corroborated by {corro}"
         )
+    lines.append(PROVENANCE_END)
     lines.append("")
     return "\n".join(lines)
 
