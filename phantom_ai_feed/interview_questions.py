@@ -20,6 +20,7 @@ from collections import Counter
 from pathlib import Path
 
 from . import summarize as _sum
+from . import srs as _srs
 
 DEFAULT_LOG_DIR = Path.home() / ".phantom-mesh" / "logs" / "phantom-ai-feed"
 _TOPIC_RE = re.compile(r"##\s+(\S[^_\n]+)")
@@ -33,6 +34,18 @@ def _collect_week(log_dir: Path, end: _dt.date, days: int = 6) -> list[tuple[_dt
         if p.exists():
             out.append((d, p.read_text("utf-8")))
     return list(reversed(out))
+
+
+def _extract_questions(body: str, end: _dt.date) -> list[tuple[str, str]]:
+    """Parse numbered question lines ('1. text') into (question_id, text) pairs.
+
+    question_id is ``f"{end.isoformat()}-q{n}"``.
+    """
+    pairs: list[tuple[str, str]] = []
+    for m in re.finditer(r"(?m)^\s*(\d+)\.\s+(.*\S)\s*$", body):
+        n, text = m.group(1), m.group(2).strip()
+        pairs.append((f"{end.isoformat()}-q{n}", text))
+    return pairs
 
 
 def _stub_questions(week: list[tuple[_dt.date, str]]) -> str:
@@ -76,6 +89,7 @@ def run(
     end: _dt.date | None = None,
     *,
     use_stub: bool = False,
+    srs_store: Path | None = None,
 ) -> Path:
     end = end or _dt.date.today()
     week = _collect_week(log_dir, end)
@@ -91,6 +105,10 @@ def run(
         body = _sum.summarize(_llm_prompt(week), max_words=600, wrap=False)
     header = f"# phantom-ai-feed weekly interview questions — week ending {end.isoformat()}\n\n"
     out_path.write_text(header + body + "\n", encoding="utf-8")
+    if srs_store is not None:
+        registered = _srs.register_questions(srs_store, _extract_questions(body, end), on=end)
+        if registered:
+            print(f'registered {len(registered)} SRS cards in {srs_store}')
     print(f"wrote {out_path}")
     return out_path
 
@@ -101,9 +119,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--end", type=str, default=None,
                     help="YYYY-MM-DD; defaults to today")
     ap.add_argument("--use-stub", action="store_true")
+    ap.add_argument('--register-srs', type=Path, default=None,
+                    help='also register generated questions into this SRS JSONL store as new cards')
     args = ap.parse_args(argv)
     end = _dt.date.fromisoformat(args.end) if args.end else None
-    run(log_dir=args.log_dir, end=end, use_stub=args.use_stub)
+    run(log_dir=args.log_dir, end=end, use_stub=args.use_stub, srs_store=args.register_srs)
     return 0
 
 
