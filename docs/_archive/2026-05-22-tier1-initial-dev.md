@@ -1,3 +1,5 @@
+> ARCHIVED 2026-06-19 — frozen historical snapshot; current status lives in [/ROADMAP.md](../../ROADMAP.md)
+
 # Tier 1 initial dev — 2026-05-22
 
 ## What's in (this commit)

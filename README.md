@@ -4,9 +4,10 @@
 
 > 中文 AI 工程師日報 + 面試題自動生成器 + on-prem RAG-ready 知識庫 — 跨裝置一站式資訊代謝管線,招聘對齊中型 AI 新創、副業可走 Substack。
 
-![status: alpha · Tier 1](https://img.shields.io/badge/status-alpha%20%C2%B7%20Tier%201-orange)
 ![license: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
 [![phantom-mesh ecosystem](https://img.shields.io/badge/ecosystem-phantom--mesh-purple)](https://github.com/markl-a/phantom-mesh)
+
+> **Docs:** start at [`docs/INDEX.md`](docs/INDEX.md) · **Status:** see [`ROADMAP.md`](ROADMAP.md)
 
 ## 30-second demo
 
@@ -32,15 +33,9 @@ electronic newsletter 是手寫;**phantom-ai-feed 是中文 + 本機 + agentic**
 [markl-a/My-AI-Learning-Notes](https://github.com/markl-a/My-AI-Learning-Notes)
 (19 stars, Jupyter notebook 系列)為 daemon-friendly 的自動化資訊流。
 
-## Status (2026-05-22)
+## Status
 
-- ✅ **Tier 1 shipped**: 8 個 AI/ML RSS 來源抓取 + Gemini Flash 摘要(含
-  stub fallback,無 API key 也能跑) + FTS5 寫入路徑 + 週末 LLM 出面試題
-  stub + best-effort `phantom event capture` 整合。
-- 🟡 **Tier 2 next**: SM-2 spaced repetition 排程(複習舊題)、Substack draft
-  自動發布 hook、來源信度評分。
-- 🟡 **Tier 3 (M2-M3, ~2026-07)**: 跨來源去重 / 主題聚類、面試題答題與評
-  分閉環、付費 premium 來源(arxiv-sanity 雜誌等)。
+狀態(Shipped / In progress / Planned-next)的唯一真實來源見 **[`ROADMAP.md`](ROADMAP.md)**。
 
 ## 30-second quickstart
 
@@ -77,7 +72,7 @@ AI 新進展寫進你自己的 FTS5 memory,讓 phantom 的 agent 可以回答「
 最新進展是什麼?」。
 
 ```
-8 RSS sources
+14 RSS sources (含中文來源)
    ↓ phantom_ai_feed.fetch
 {title, link, summary, source}[]
    ↓ phantom_ai_feed.summarize (Gemini Flash / stub)
@@ -102,16 +97,12 @@ config)、**P3** (進化網 — RSS → FTS5 → 面試題 → 回顧)。
 - **Co-builders**: 想自架英文圈 Daily.dev 替代品的非英文母語工程師(日韓越
   泰語直接 fork 換來源)。
 
-## Roadmap (per master plan)
+## Roadmap & docs
 
-- 詳細設計: [`docs/03-phantom-ai-feed.md`](docs/) (本機 spec)
+- 狀態與規劃(唯一真實來源): **[`ROADMAP.md`](ROADMAP.md)**
+- 文件導覽入口: [`docs/INDEX.md`](docs/INDEX.md)
+- 詳細設計 spec: [`docs/03-phantom-ai-feed.md`](docs/03-phantom-ai-feed.md)
 - 七專案總圖: [phantom-mesh planning tree](https://github.com/markl-a/phantom-mesh)
-
-3-bullet:
-
-1. **M2** — SM-2 排程、來源信度評分、Substack draft hook。
-2. **M3** — 跨來源去重 / 主題聚類、答題與評分閉環。
-3. **Post-M3** — 付費 premium 來源、跨語系 fork (en/ja)。
 
 ## Sibling scaffold (do not confuse)
 
