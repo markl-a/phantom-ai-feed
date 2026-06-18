@@ -120,3 +120,102 @@ def test_pipeline_stops_when_first_stage_input_empty(tmp_path):
     assert not (base / f"weekly-questions-{today}.md").exists()
     assert not (base / "srs.jsonl").exists()
     assert "pipeline" in proc.stderr.lower()
+
+
+def test_pipeline_resurfaces_due_srs_cards(tmp_path):
+    base = tmp_path / "base"
+    base.mkdir(parents=True)
+    toml = _write_feeds(tmp_path)
+    today = datetime.date.today()
+    store = base / "srs.jsonl"
+
+    cards = [
+        {
+            "question_id": "seed-due-1",
+            "question": "Past due seeded question",
+            "answered_at": (today - datetime.timedelta(days=10)).isoformat(),
+            "grade": 4,
+            "ease_factor": 2.5,
+            "interval_days": 1,
+            "repetitions": 1,
+            "due_date": (today - datetime.timedelta(days=10)).isoformat(),
+        },
+        {
+            "question_id": "seed-future-1",
+            "question": "Future seeded question",
+            "answered_at": (today - datetime.timedelta(days=1)).isoformat(),
+            "grade": 5,
+            "ease_factor": 2.5,
+            "interval_days": 30,
+            "repetitions": 2,
+            "due_date": (today + datetime.timedelta(days=30)).isoformat(),
+        },
+    ]
+    store.write_text(
+        "\n".join(json.dumps(card) for card in cards) + "\n",
+        encoding="utf-8",
+    )
+
+    proc = _run_pipeline(
+        "--daily",
+        "--use-stub",
+        "--force",
+        "--feeds",
+        str(toml),
+        "--base-dir",
+        str(base),
+        "--date",
+        today.isoformat(),
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    review = base / f"srs-due-{today.isoformat()}.md"
+    assert review.exists()
+    text = review.read_text(encoding="utf-8")
+    assert "seed-due-1" in text
+    assert "seed-future-1" not in text
+
+
+def test_pipeline_review_empty_when_nothing_due(tmp_path):
+    base = tmp_path / "base"
+    base.mkdir(parents=True)
+    toml = _write_feeds(tmp_path)
+    today = datetime.date.today()
+    store = base / "srs.jsonl"
+
+    cards = [
+        {
+            "question_id": f"{today.isoformat()}-q{n}",
+            "question": f"pre-seeded {n}",
+            "answered_at": (today - datetime.timedelta(days=1)).isoformat(),
+            "grade": 5,
+            "ease_factor": 2.5,
+            "interval_days": 30,
+            "repetitions": 1,
+            "due_date": (today + datetime.timedelta(days=30)).isoformat(),
+        }
+        for n in range(1, 6)
+    ]
+    store.write_text(
+        "\n".join(json.dumps(card) for card in cards) + "\n",
+        encoding="utf-8",
+    )
+
+    proc = _run_pipeline(
+        "--daily",
+        "--use-stub",
+        "--force",
+        "--feeds",
+        str(toml),
+        "--base-dir",
+        str(base),
+        "--date",
+        today.isoformat(),
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    review = base / f"srs-due-{today.isoformat()}.md"
+    assert review.exists()
+    text = review.read_text(encoding="utf-8")
+    assert "(0 cards)" in text
+    assert f"{today.isoformat()}-q1" not in text

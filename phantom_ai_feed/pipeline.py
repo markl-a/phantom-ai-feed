@@ -18,6 +18,7 @@ from pathlib import Path
 from . import digest as _digest
 from . import interview_questions as _iq
 from . import newsletter as _newsletter
+from . import srs as _srs
 from . import weekly as _weekly
 
 
@@ -76,6 +77,13 @@ def run(
         )
     )
     artifacts.append(srs_store)
+    review_out = srs_store.parent / f"srs-due-{end.isoformat()}.md"
+    artifacts.append(
+        _run_stage(
+            "srs_review",
+            lambda: _srs._write_review(review_out, end, _srs.due_cards(srs_store, end)),
+        )
+    )
 
     if weekly:
         artifacts.append(
