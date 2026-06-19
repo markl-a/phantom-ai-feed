@@ -1,5 +1,7 @@
 # Roadmap
 
+> ARCHIVED 2026-06-19 — 內容已併入 docs/phantom-ai-feed.md;此為歷史版本。
+
 > Single source of truth for project status. Other docs (including `README.md`)
 > link here instead of carrying their own status lists.
 >

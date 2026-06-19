@@ -1,5 +1,7 @@
 # Documentation index
 
+> ARCHIVED 2026-06-19 — 內容已併入 docs/phantom-ai-feed.md;此為歷史版本。
+
 > Single navigation entry for `phantom-ai-feed` docs. Start here.
 >
 > Last updated: **2026-06-19**
