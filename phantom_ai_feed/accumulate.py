@@ -64,18 +64,6 @@ class AccumulateResult:
         return self.changed + self.unchanged + self.errored
 
 
-def _for_capture(entry: dict) -> dict:
-    """Shape a raw fetched entry for the capture seam.
-
-    Fetched entries carry ``summary_excerpt``; ``capture._fold_text`` reads
-    ``summary``. Copy the excerpt across (no LLM) so FTS5 can search the body
-    text, not just the title. Leaves an existing ``summary`` untouched.
-    """
-    if not entry.get("summary"):
-        entry = {**entry, "summary": entry.get("summary_excerpt", "")}
-    return entry
-
-
 def run(
     feeds_toml: Path = DEFAULT_FEEDS,
     *,
@@ -89,10 +77,15 @@ def run(
         raise SystemExit(f"no [[feed]] entries in {feeds_toml}")
 
     cache = _fetch.load_feed_cache(cache_path)
+    # Snapshot validators BEFORE fetch_all mutates the cache in place, so a feed
+    # whose entries fail to capture can be rolled back to its prior validator
+    # (or dropped) — otherwise next run's 304 would skip entries that never
+    # actually reached FTS5.
+    prior = {k: dict(v) for k, v in cache.items() if isinstance(v, dict)}
     results = _fetch.fetch_all(feeds, top_n=top_n, cache=cache)
 
     out = AccumulateResult()
-    for _feed, payload in results:
+    for feed, payload in results:
         if isinstance(payload, _fetch.NotModified):
             out.unchanged += 1
             continue
@@ -100,15 +93,30 @@ def run(
             out.errored += 1
             continue
         out.changed += 1
+        feed_failed = 0
         for entry in payload:
-            res = _capture.capture_entry(_for_capture(entry), dry_run=dry_run)
-            if res.ok:
+            res = _capture.capture_entry(entry, dry_run=dry_run)
+            if res.status == "ok":
                 out.captured += 1
+            elif res.status == "dry-run":
+                pass  # nothing written -> neither captured nor failed
             else:
                 out.capture_failed += 1
+                feed_failed += 1
+        if feed_failed:
+            # Roll this feed's validator back so it is re-fetched next run; the
+            # uncaptured entries must not be hidden behind a future 304.
+            url = feed.get("url")
+            if url in prior:
+                cache[url] = prior[url]
+            else:
+                cache.pop(url, None)
 
     # Persist refreshed validators so the next run can ask "changed since last?".
-    _fetch.save_feed_cache(cache_path, cache)
+    # A dry run writes nothing to FTS5, so it must NOT persist validators either
+    # (a later real run would otherwise 304-skip feeds it never captured).
+    if not dry_run:
+        _fetch.save_feed_cache(cache_path, cache)
     return out
 
 

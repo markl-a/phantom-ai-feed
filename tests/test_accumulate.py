@@ -98,10 +98,11 @@ def test_accumulate_counts_errored_feed(monkeypatch, tmp_path):
     assert res.captured == 0
 
 
-def test_accumulate_uses_excerpt_as_capture_body(monkeypatch, tmp_path):
-    """Raw fetched entries carry ``summary_excerpt`` (not ``summary``); the
-    accumulation path must feed that excerpt to capture so FTS5 can search the
-    body text, not just the title."""
+def test_accumulate_passes_raw_entry_with_excerpt_to_capture(monkeypatch, tmp_path):
+    """The accumulation path hands the raw fetched entry (carrying
+    ``summary_excerpt``) straight to capture — the summary/excerpt impedance is
+    resolved at the capture seam (see test_fold_text_falls_back_to_excerpt), not
+    band-aided per-caller here."""
     seen: list[dict] = []
     monkeypatch.setattr(
         _accum._capture,
@@ -115,7 +116,67 @@ def test_accumulate_uses_excerpt_as_capture_body(monkeypatch, tmp_path):
 
     _accum.run(Path("ignored.toml"), cache_path=tmp_path / "c.json")
 
-    assert seen[0].get("summary") == "novel KV-cache trick"
+    assert seen[0].get("summary_excerpt") == "novel KV-cache trick"
+
+
+def test_fold_text_falls_back_to_excerpt(monkeypatch):
+    """capture._fold_text must search the excerpt when a raw fetched entry has
+    only ``summary_excerpt`` and no ``summary`` — otherwise FTS5 rows carry only
+    the title."""
+    cmd = _capture.build_capture_command(
+        {"title": "T", "summary_excerpt": "body via excerpt", "link": "L", "source": "s"}
+    )
+    text = cmd[cmd.index("--text") + 1]
+    assert "body via excerpt" in text
+
+
+def test_accumulate_dry_run_writes_nothing_and_skips_cache(monkeypatch, tmp_path):
+    """--dry-run must not count anything as captured (nothing is written) and
+    must NOT persist the validator cache (else a later real run would 304-skip
+    feeds whose entries were never actually captured)."""
+    monkeypatch.setattr(
+        _accum._capture,
+        "capture_entry",
+        lambda entry, dry_run=False: _capture.CaptureResult(
+            status="dry-run" if dry_run else "ok"
+        ),
+    )
+    feed = {"name": "f", "url": "https://e/f"}
+    _patch_feeds(monkeypatch, [(feed, [_entry("a"), _entry("b")])])
+    cache_path = tmp_path / "c.json"
+
+    res = _accum.run(Path("ignored.toml"), cache_path=cache_path, dry_run=True)
+
+    assert res.changed == 1
+    assert res.captured == 0          # dry-run wrote nothing -> not "captured"
+    assert res.capture_failed == 0    # dry-run is not a failure either
+    assert not cache_path.exists()    # dry-run must not poison the cache
+
+
+def test_accumulate_reverts_validator_when_capture_fails(monkeypatch, tmp_path):
+    """If a changed feed's entries fail to capture, its refreshed validator must
+    NOT be persisted — otherwise next run's 304 would skip entries that never
+    reached FTS5 (silent data loss)."""
+    cache_path = tmp_path / "c.json"
+
+    def fake_fetch_all(feeds, top_n=3, cache=None):
+        cache["https://e/f"] = {"etag": '"fresh"', "last_modified": "Sat, 06"}
+        return [({"name": "f", "url": "https://e/f"}, [_entry("a")])]
+
+    monkeypatch.setattr(_accum._fetch, "load_feeds", lambda _p: [{"url": "https://e/f"}])
+    monkeypatch.setattr(_accum._fetch, "fetch_all", fake_fetch_all)
+    monkeypatch.setattr(
+        _accum._capture,
+        "capture_entry",
+        lambda entry, dry_run=False: _capture.CaptureResult(status="no-cli"),
+    )
+
+    res = _accum.run(Path("ignored.toml"), cache_path=cache_path)
+
+    assert res.capture_failed == 1
+    assert res.captured == 0
+    # validator reverted (prior was empty -> absent) so next run re-fetches it
+    assert "https://e/f" not in _fetch.load_feed_cache(cache_path)
 
 
 def test_accumulate_persists_validator_cache(monkeypatch, tmp_path):

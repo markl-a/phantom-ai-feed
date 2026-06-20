@@ -95,3 +95,21 @@ def test_fetch_all_captures_per_feed_error_concurrently(monkeypatch):
     assert isinstance(by_name["bad"], urllib.error.URLError)
     assert isinstance(by_name["ok1"], list) and by_name["ok1"]
     assert isinstance(by_name["ok2"], list) and by_name["ok2"]
+
+
+def test_fetch_all_isolates_non_network_exception(monkeypatch):
+    """A malformed feed (missing 'url' -> KeyError, NOT one of the network error
+    types) must still be isolated into its own slot, not abort the whole
+    concurrent batch and crash every other feed."""
+    feeds = [
+        {"name": "ok", "url": "https://e/ok"},
+        {"name": "broken"},  # no 'url' -> fetch_feed raises KeyError
+    ]
+    monkeypatch.setattr(_fetch, "_raw_http_get", lambda url: RSS_OK)
+    monkeypatch.setattr(_fetch.time, "sleep", lambda s: None)
+
+    out = _fetch.fetch_all(feeds, top_n=1)
+    by_name = {f["name"]: payload for f, payload in out}
+
+    assert isinstance(by_name["broken"], Exception)
+    assert isinstance(by_name["ok"], list) and by_name["ok"]

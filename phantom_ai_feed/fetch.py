@@ -115,15 +115,33 @@ def filter_feeds(feeds: Iterable[dict], *, strict: bool = False) -> list[dict]:
     return [f for f in feeds if f.get("optional") is not True]
 
 
-def _raw_http_get(url: str) -> bytes:
-    """The genuine single network fetch (no retries). Patched out in tests."""
-    # PHANTOM_AI_FEED_OFFLINE=1 forces a genuine no-network mode: skip the fetch
-    # immediately (fetch_all captures it per-feed) instead of hanging on timeouts.
+def _build_request(
+    url: str, *, etag: str | None = None, last_modified: str | None = None
+) -> urllib.request.Request:
+    """Build the GET request shared by the unconditional and conditional paths.
+
+    Single home for the offline-mode short-circuit, the User-Agent, and the
+    optional conditional validators, so the two fetch entry points cannot drift
+    (a UA bump or a new header is applied once, to both).
+
+    ``PHANTOM_AI_FEED_OFFLINE=1`` raises here so a no-network run fails fast
+    (captured per-feed by ``fetch_all``) instead of hanging on a timeout.
+    """
     if os.environ.get("PHANTOM_AI_FEED_OFFLINE") == "1":
         raise urllib.error.URLError(
             "offline mode (PHANTOM_AI_FEED_OFFLINE=1): network fetch skipped"
         )
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    headers = {"User-Agent": UA}
+    if etag:
+        headers["If-None-Match"] = etag
+    if last_modified:
+        headers["If-Modified-Since"] = last_modified
+    return urllib.request.Request(url, headers=headers)
+
+
+def _raw_http_get(url: str) -> bytes:
+    """The genuine single network fetch (no retries). Patched out in tests."""
+    req = _build_request(url)
     with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
         return resp.read()
 
@@ -149,16 +167,7 @@ def _raw_conditional_get(
     wrapper can decide whether it is transient). No retries here — patched out
     in tests, mirroring ``_raw_http_get``.
     """
-    if os.environ.get("PHANTOM_AI_FEED_OFFLINE") == "1":
-        raise urllib.error.URLError(
-            "offline mode (PHANTOM_AI_FEED_OFFLINE=1): network fetch skipped"
-        )
-    headers = {"User-Agent": UA}
-    if etag:
-        headers["If-None-Match"] = etag
-    if last_modified:
-        headers["If-Modified-Since"] = last_modified
-    req = urllib.request.Request(url, headers=headers)
+    req = _build_request(url, etag=etag, last_modified=last_modified)
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
             body = resp.read()
@@ -300,7 +309,13 @@ def fetch_feed(
             )
         )
         # 200 path only (NotModified propagated above, leaving the cache as-is).
-        cache[url] = {"etag": etag, "last_modified": last_modified}
+        # Keep last-known-good validators when the response omits one, rather
+        # than clobbering them with None (which would silently downgrade this
+        # feed to unconditional refetch forever).
+        cache[url] = {
+            "etag": etag or prior.get("etag"),
+            "last_modified": last_modified or prior.get("last_modified"),
+        }
         raw = body
     out = _parse_entries(raw, top_n)
     for e in out:
@@ -329,7 +344,10 @@ def fetch_all(
     so a single slow/timing-out feed no longer stalls the rest). The returned
     list preserves INPUT order regardless of completion order, and each feed's
     error is still isolated into its own slot exactly as the sequential version
-    did. ``max_workers`` defaults to ``min(MAX_FETCH_WORKERS, len(feeds))``.
+    did — and ANY per-feed failure is isolated, not just the network types: a
+    malformed feed (e.g. a missing ``url`` key → KeyError) lands in its own slot
+    instead of aborting the whole batch. ``max_workers`` defaults to
+    ``min(MAX_FETCH_WORKERS, len(feeds))``.
 
     When ``cache`` is supplied the fetches are conditional (see ``fetch_feed``):
     an unchanged feed surfaces as a ``NotModified`` payload in its slot (so a
@@ -344,9 +362,12 @@ def fetch_all(
     workers = max_workers or min(MAX_FETCH_WORKERS, len(feed_list))
 
     def _one(f: dict) -> list[dict] | Exception:
+        # Isolate EVERY per-feed failure (network errors, NotModified, and
+        # malformed-feed errors like KeyError) into this feed's own slot, so one
+        # bad feed can never crash fetch_all and take the whole run down.
         try:
             return fetch_feed(f, top_n, cache=cache)
-        except (NotModified, urllib.error.URLError, TimeoutError, OSError) as e:
+        except Exception as e:  # noqa: BLE001 - deliberate per-feed isolation
             return e
 
     # executor.map preserves input order; results align with feed_list by index.

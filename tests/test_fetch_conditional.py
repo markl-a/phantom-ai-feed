@@ -129,6 +129,23 @@ def test_fetch_feed_with_cache_refreshes_validators_on_200(monkeypatch):
     assert cache["https://e/f"] == {"etag": '"v2"', "last_modified": "Wed, 03"}
 
 
+def test_fetch_feed_with_cache_keeps_prior_validators_when_200_lacks_them(monkeypatch):
+    """A 200 whose response omits ETag/Last-Modified must NOT clobber good prior
+    validators with None — keep last-known-good so conditional GET still works
+    next run instead of silently degrading to unconditional refetch."""
+    monkeypatch.setattr(
+        _fetch,
+        "_raw_conditional_get",
+        lambda url, *, etag=None, last_modified=None: (RSS_OK, None, None),
+    )
+    cache = {"https://e/f": {"etag": '"keep"', "last_modified": "Mon, 01"}}
+    out = _fetch.fetch_feed(
+        {"name": "x", "url": "https://e/f"}, top_n=1, cache=cache
+    )
+    assert out and out[0]["title"] == "Hello"
+    assert cache["https://e/f"] == {"etag": '"keep"', "last_modified": "Mon, 01"}
+
+
 def test_fetch_feed_with_cache_sends_prior_validators(monkeypatch):
     seen = {}
 
