@@ -150,3 +150,324 @@ name      = "ptt-DataScience"        # PTT 資料科學板 (zh-TW)
 url       = "https://www.ptt.cc/atom/DataScience.xml"
 category  = "ptt"
 optional  = true
+
+# ---------------------------------------------------------------------------
+# Phase-1 bulk expansion (generated from docs/AI-SOURCES-CURATED.md via the
+# resolvers, reachability-verified 2026-06). All optional=true so --strict
+# still requires only the original core. See docs/_drafts/source-expansion-design.md
+# ---------------------------------------------------------------------------
+# ===== YouTube (Phase-1 expansion, reachability-verified, optional) =====
+
+[[feed]]
+name     = "yt-3blue1brown"   # 3Blue1Brown
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCYO_jab_esuFRV4b17AJtAw"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-ai-ai-chatgpt"   # AI大学【AI&ChatGPT最新情報】
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCXo1SsIDZ_dke2Nr1r3qk6w"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-ai-explained"   # AI Explained
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCNJ1Ymd5yFuUPtn21xtRbbw"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-aibujp"   # AI部
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCM3UoIq-HtYzTaSUOZuPJxQ"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-aicu-ai-creators-union"   # [AICU] AI Creators Union!
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UC7e1RuWno2HiBFQR5GRub-g"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-aivtuber2866"   # にゃんたのAIチャンネル
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCZQVTC3uLCyuJUOcRlguazA"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-akiyama-yuta-ai"   # Akiyama Yuta(AI活用術)
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCx3CHuiy-14g2y4hqkpnebQ"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-bbanghyong"   # 빵형의 개발도상국
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UC9PB9nKYqKEx_N3KM-JVTpg"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-bycloud"   # bycloud
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCgfe2ooZD3VJPB6aJAnuQng"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-ch-uccqa-mzqx"   # 電腦王阿達
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCcQA-MzQxCvET1S-BekQdAA"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-ch-ucpggth2px"   # 文森說書
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCPgGtH2PxZ9xR0ehzQ27FHw"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-ch-ucsj6rubit"   # 슈카월드
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCsJ6RuBiTVWRX156FVbeaGg"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-ch-ucv4u1uzvu"   # 모두의연구소
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCv4U1uZvuxopMj8xiPXIBMQ"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-computerphile"   # Computerphile
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UC9-y-6csu5WGm29I7JiwpnA"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-fireship"   # Fireship
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCsBjURrPoezykLs9EqgamOA"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-gin"   # 工gin師
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCwedAe6WslA24lsa0W4dLLg"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-hung-yi-lee"   # Hung-yi Lee
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UC2ggjtuuWvxrHHHiaDH1dlQ"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-jocoding"   # 조코딩 JoCoding
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCQNE2JmbasNYbjGAcuBiRRg"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-keito-ai-web-ch"   # KEITO【AI&WEB ch】
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCfapRkagDtoQEkGeyD3uERQ"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-nomad-coders"   # 노마드 코더 Nomad Coders
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCUpJs89fSBXNolQGOYKn0YQ"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-panscischool"   # 泛科學院
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCATnB3v_NkTTd9iD_4W2A-g"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-sentdex"   # sentdex
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCfzlCWGWYyIQ0aLC5w48gBQ"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-shusen-wang"   # Shusen Wang
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UC9qKcEgXHPFP2-ywYoA-E0Q"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-teddynote"   # 테디노트 TeddyNote
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCt2wAAXgm87ACiQnDHQEW6Q"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-tv-ai"   # ウェブ職TV@AIセキュリティ専門
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UClNZUVnSFRKKUfJYarEUqdA"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-unrealtech"   # 안될공학 - IT 테크 신기술
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCeN2YeJcBCRJoXgzF_OU3qw"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-vivian-ntu-miulab"   # 陳縕儂 Vivian NTU MiuLab
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCyB2RBqKbxDPGCs1PokeUiA"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-yannic-kilcher"   # Yannic Kilcher
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCZHmQk67mSJgfCCTn7xBfew"
+category = "youtube"
+optional = true
+
+[[feed]]
+name     = "yt-youtube-nakata-university"   # 中田敦彦のYouTube大学 - NAKATA UNIVERSITY
+url      = "https://www.youtube.com/feeds/videos.xml?channel_id=UCFo4kqllbcQ4nV83WCyraiw"
+category = "youtube"
+optional = true
+
+# ===== Blogs / newsletters (Phase-1 expansion, optional) =====
+
+[[feed]]
+name     = "blog-36kr-com"
+url      = "https://36kr.com/feed"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-allenai-org"
+url      = "https://allenai.org/rss.xml"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-bensbites-com"
+url      = "https://bensbites.com/feed"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-gwern-net"
+url      = "https://gwern.substack.com/feed"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-importai-substack-com"
+url      = "https://importai.substack.com/feed"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-infoq-cn"
+url      = "https://www.infoq.cn/feed"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-interconnects-ai"
+url      = "https://www.interconnects.ai/feed"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-jack-clark-net"
+url      = "https://jack-clark.net/feed/"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-juejin-cn"
+url      = "https://juejin.cn/rss"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-lastweekin-ai"
+url      = "https://lastweekin.ai/feed"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-latent-space"
+url      = "https://www.latent.space/feed"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-leiphone-com"
+url      = "https://www.leiphone.com/feed"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-lesswrong-com"
+url      = "https://www.lesswrong.com/feed.xml"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-magazine-sebastianraschka-com"
+url      = "https://magazine.sebastianraschka.com/feed"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-microsoft-com"
+url      = "https://www.microsoft.com/en-us/research/feed/"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-mistral-ai"
+url      = "https://mistral.ai/rss.xml"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-news-smol-ai"
+url      = "https://news.smol.ai/rss.xml"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-news-ycombinator-com"
+url      = "https://news.ycombinator.com/rss"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-qbitai-com"
+url      = "https://www.qbitai.com/feed"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-qwenlm-github-io"
+url      = "https://qwenlm.github.io/blog/index.xml"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-theneurondaily-com"
+url      = "https://rss.beehiiv.com/feeds/N4eCstxvgX.xml"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-tldr-tech"
+url      = "https://tldr.tech/rss"
+category = "blog"
+optional = true
+
+[[feed]]
+name     = "blog-towardsdatascience-com"
+url      = "https://towardsdatascience.com/feed/"
+category = "blog"
+optional = true
