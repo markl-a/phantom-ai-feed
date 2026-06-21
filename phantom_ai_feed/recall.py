@@ -13,14 +13,16 @@ from pathlib import Path
 from . import store as _store
 
 
-def _utf8_stdout() -> None:
-    """Feed titles carry emoji/CJK; a Windows console defaults to a legacy
-    codepage (cp950/cp1252) that can't encode them and would crash on print.
-    Make stdout UTF-8 and replace anything unencodable."""
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except (AttributeError, ValueError):  # already wrapped / not reconfigurable
-        pass
+def _utf8_streams() -> None:
+    """Feed titles AND CJK queries carry emoji/CJK; a Windows console defaults to
+    a legacy codepage (cp950/cp1252) that can't encode them and would crash on
+    print. Make BOTH stdout and stderr UTF-8 (the no-match message echoes the
+    query to stderr)."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):  # already wrapped / not reconfigurable
+            pass
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -32,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--limit", type=int, default=10)
     args = ap.parse_args(argv)
 
-    _utf8_stdout()
+    _utf8_streams()
     rows = _store.recall(args.query, db_path=args.db_path, limit=args.limit)
     if not rows:
         print(f"recall: no matches for {args.query!r}", file=sys.stderr)

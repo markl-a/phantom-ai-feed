@@ -70,3 +70,26 @@ def test_captured_at_recorded(tmp_path):
     store.capture({"title": "dated", "link": "l", "source": "s"}, db_path=db, on=_dt.date(2026, 6, 21))
     rows = store.recall("dated", db_path=db)
     assert rows[0]["captured_at"] == "2026-06-21"
+
+
+def test_recall_finds_cjk_substring(tmp_path):
+    """Chinese full-text search: a 2-char CJK query must find a longer CJK title.
+    FTS5's default tokenizer treats a CJK run as one token, so recall falls back
+    to a LIKE substring scan — the whole point for a Chinese-focused tool."""
+    db = tmp_path / "k.db"
+    store.capture(
+        {"title": "量子位:大模型推理加速新方法", "summary": "vLLM PagedAttention",
+         "link": "l", "source": "zh-qbitai", "category": "zh"},
+        db_path=db,
+    )
+    assert store.recall("量子", db_path=db)       # 2-char CJK
+    assert store.recall("大模型", db_path=db)
+    assert store.recall("推理加速", db_path=db)
+
+
+def test_recall_like_fallback_escapes_wildcards(tmp_path):
+    """A literal % in the query must match literally, not act as a LIKE wildcard."""
+    db = tmp_path / "k.db"
+    store.capture({"title": "100% reproducible build", "link": "l", "source": "s"}, db_path=db)
+    assert store.recall("100%", db_path=db)
+    assert store.recall("99%", db_path=db) == []  # % must not wildcard-match everything
