@@ -376,12 +376,12 @@ def fetch_all(
     return list(zip(feed_list, payloads))
 
 
-def load_feed_cache(path: Path | str) -> dict:
-    """Load the ``{url: {"etag", "last_modified"}}`` validator cache from JSON.
+def load_json_store(path: Path | str) -> dict:
+    """Load a small JSON dict store from ``path``.
 
-    A missing or unreadable/corrupt cache returns ``{}`` — the cache is a
-    best-effort optimisation, never a hard dependency, so a bad file just means
-    every feed is fetched unconditionally this run."""
+    A missing or unreadable/corrupt file returns ``{}`` — these stores (the
+    validator cache, the dedup seen-store) are best-effort optimisations, never
+    hard dependencies, so a bad file just degrades to "do the work again"."""
     p = Path(path)
     if not p.exists():
         return {}
@@ -392,12 +392,23 @@ def load_feed_cache(path: Path | str) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def save_feed_cache(path: Path | str, cache: dict) -> Path:
-    """Persist the validator cache as pretty, stable-sorted JSON."""
+def save_json_store(path: Path | str, obj: dict) -> Path:
+    """Persist a JSON dict store as pretty, stable-sorted JSON."""
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(
-        json.dumps(cache, indent=2, sort_keys=True, ensure_ascii=False),
+        json.dumps(obj, indent=2, sort_keys=True, ensure_ascii=False),
         encoding="utf-8",
     )
     return p
+
+
+def load_feed_cache(path: Path | str) -> dict:
+    """Load the ``{url: {"etag", "last_modified"}}`` validator cache (see
+    ``load_json_store``)."""
+    return load_json_store(path)
+
+
+def save_feed_cache(path: Path | str, cache: dict) -> Path:
+    """Persist the validator cache (see ``save_json_store``)."""
+    return save_json_store(path, cache)

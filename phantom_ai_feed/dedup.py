@@ -87,6 +87,24 @@ def normalize_url(url: str | None) -> str:
     return urlunsplit(("", host, path, query, "")).lstrip("/") or host
 
 
+def entry_key(entry: dict) -> str:
+    """Stable per-entry identity for cross-RUN dedup (distinct from the in-run
+    cross-source clustering above).
+
+    Prefers the normalised link (reusing ``normalize_url``); falls back to the
+    stopword-stripped title tokens when there is no link. Returns ``""`` when
+    there is neither — the caller treats an empty key as "always new" (an entry
+    with no stable identity cannot be deduped).
+    """
+    norm = normalize_url(entry.get("link"))
+    if norm:
+        return norm
+    tokens = _title_tokens(entry.get("title", ""))
+    if tokens:
+        return "t:" + " ".join(sorted(tokens))
+    return ""
+
+
 def _is_tracking_key(key: str) -> bool:
     k = key.lower()
     return k in _TRACKING_KEYS or any(k.startswith(p) for p in _TRACKING_PREFIXES)

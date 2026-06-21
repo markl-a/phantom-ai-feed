@@ -17,7 +17,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from phantom_ai_feed import accumulate as _accum  # noqa: E402
 from phantom_ai_feed import capture as _capture  # noqa: E402
+from phantom_ai_feed import dedup as _dedup  # noqa: E402
 from phantom_ai_feed import fetch as _fetch  # noqa: E402
+
+
+def _ok(captured=None):
+    def _cap(entry, dry_run=False):
+        if captured is not None:
+            captured.append(entry)
+        return _capture.CaptureResult(status="dry-run" if dry_run else "ok")
+    return _cap
 
 
 def _entry(title, excerpt="body text", source="src"):
@@ -220,3 +229,101 @@ def test_accumulate_counts_capture_failure(monkeypatch, tmp_path):
     assert res.changed == 1
     assert res.captured == 0
     assert res.capture_failed == 2
+
+
+# --------------------------------------------------------------------------- #
+# ② entry-level dedup (per-feed persistent seen-store)                         #
+# --------------------------------------------------------------------------- #
+def test_accumulate_skips_already_seen_entry(monkeypatch, tmp_path):
+    """An entry whose key is already in the feed's seen-store is not re-captured."""
+    seen_path = tmp_path / "seen.json"
+    feed = {"name": "f", "url": "https://e/f"}
+    _fetch.save_feed_cache(seen_path, {"https://e/f": [_dedup.entry_key(_entry("a"))]})
+
+    captured: list[dict] = []
+    monkeypatch.setattr(_accum._capture, "capture_entry", _ok(captured))
+    _patch_feeds(monkeypatch, [(feed, [_entry("a"), _entry("b")])])
+
+    res = _accum.run(
+        Path("ignored.toml"), cache_path=tmp_path / "c.json", seen_path=seen_path
+    )
+    assert res.skipped_duplicate == 1
+    assert res.captured == 1
+    assert [e["title"] for e in captured] == ["b"]
+
+
+def test_accumulate_records_captured_entry_in_seen_store(monkeypatch, tmp_path):
+    seen_path = tmp_path / "seen.json"
+    feed = {"name": "f", "url": "https://e/f"}
+    monkeypatch.setattr(_accum._capture, "capture_entry", _ok())
+    _patch_feeds(monkeypatch, [(feed, [_entry("a")])])
+
+    _accum.run(Path("ignored.toml"), cache_path=tmp_path / "c.json", seen_path=seen_path)
+
+    store = _fetch.load_feed_cache(seen_path)
+    assert _dedup.entry_key(_entry("a")) in store["https://e/f"]
+
+
+def test_accumulate_failed_capture_not_recorded_in_seen(monkeypatch, tmp_path):
+    """A capture that fails must not enter the seen-store, so it is retried."""
+    seen_path = tmp_path / "seen.json"
+    feed = {"name": "f", "url": "https://e/f"}
+    monkeypatch.setattr(
+        _accum._capture,
+        "capture_entry",
+        lambda entry, dry_run=False: _capture.CaptureResult(status="no-cli"),
+    )
+    _patch_feeds(monkeypatch, [(feed, [_entry("a")])])
+
+    _accum.run(Path("ignored.toml"), cache_path=tmp_path / "c.json", seen_path=seen_path)
+
+    store = _fetch.load_feed_cache(seen_path)
+    assert _dedup.entry_key(_entry("a")) not in store.get("https://e/f", [])
+
+
+def test_accumulate_dry_run_does_not_persist_seen(monkeypatch, tmp_path):
+    seen_path = tmp_path / "seen.json"
+    feed = {"name": "f", "url": "https://e/f"}
+    monkeypatch.setattr(_accum._capture, "capture_entry", _ok())
+    _patch_feeds(monkeypatch, [(feed, [_entry("a")])])
+
+    _accum.run(
+        Path("ignored.toml"),
+        cache_path=tmp_path / "c.json",
+        seen_path=seen_path,
+        dry_run=True,
+    )
+    assert not seen_path.exists()
+
+
+def test_accumulate_trims_seen_store_to_cap(monkeypatch, tmp_path):
+    seen_path = tmp_path / "seen.json"
+    feed = {"name": "f", "url": "https://e/f"}
+    existing = [f"old{i}" for i in range(_accum.MAX_SEEN_PER_FEED)]
+    _fetch.save_feed_cache(seen_path, {"https://e/f": existing})
+    monkeypatch.setattr(_accum._capture, "capture_entry", _ok())
+    _patch_feeds(monkeypatch, [(feed, [_entry("brand-new")])])
+
+    _accum.run(Path("ignored.toml"), cache_path=tmp_path / "c.json", seen_path=seen_path)
+
+    kept = _fetch.load_feed_cache(seen_path)["https://e/f"]
+    assert len(kept) == _accum.MAX_SEEN_PER_FEED
+    assert _dedup.entry_key(_entry("brand-new")) in kept  # newest kept
+    assert "old0" not in kept  # oldest evicted
+
+
+def test_accumulate_dedup_is_per_feed_not_global(monkeypatch, tmp_path):
+    """Same story URL across TWO feeds is captured by BOTH — per-feed scope
+    deliberately preserves cross-source corroboration."""
+    seen_path = tmp_path / "seen.json"
+    f1 = {"name": "f1", "url": "https://e/f1"}
+    f2 = {"name": "f2", "url": "https://e/f2"}
+    shared = _entry("shared-story")
+    monkeypatch.setattr(_accum._capture, "capture_entry", _ok())
+    _patch_feeds(monkeypatch, [(f1, [dict(shared)]), (f2, [dict(shared)])])
+
+    res = _accum.run(
+        Path("ignored.toml"), cache_path=tmp_path / "c.json", seen_path=seen_path
+    )
+    assert res.captured == 2
+    assert res.skipped_duplicate == 0
