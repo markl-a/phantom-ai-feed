@@ -327,3 +327,24 @@ def test_accumulate_dedup_is_per_feed_not_global(monkeypatch, tmp_path):
     )
     assert res.captured == 2
     assert res.skipped_duplicate == 0
+
+
+def test_accumulate_same_key_failure_not_recorded_in_seen(monkeypatch, tmp_path):
+    """Two entries in one feed sharing an entry_key, one ok + one failed: the
+    key must NOT be recorded (the failed one must stay retryable next run)."""
+    seen_path = tmp_path / "seen.json"
+    feed = {"name": "f", "url": "https://e/f"}
+    e1 = {"title": "x", "link": "https://e/dup", "summary_excerpt": "a"}
+    e2 = {"title": "y", "link": "https://e/dup", "summary_excerpt": "b"}  # same key
+    statuses = iter(["ok", "no-cli"])
+    monkeypatch.setattr(
+        _accum._capture,
+        "capture_entry",
+        lambda entry, dry_run=False: _capture.CaptureResult(status=next(statuses)),
+    )
+    _patch_feeds(monkeypatch, [(feed, [e1, e2])])
+
+    _accum.run(Path("ignored.toml"), cache_path=tmp_path / "c.json", seen_path=seen_path)
+
+    store = _fetch.load_feed_cache(seen_path)
+    assert _dedup.entry_key(e1) not in store.get("https://e/f", [])

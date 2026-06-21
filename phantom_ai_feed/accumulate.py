@@ -41,9 +41,8 @@ DEFAULT_FEEDS = REPO_ROOT / "sources" / "feeds.toml"
 DEFAULT_CACHE = (
     Path.home() / ".phantom-mesh" / "logs" / "phantom-ai-feed" / "fetch-cache.json"
 )
-DEFAULT_SEEN = (
-    Path.home() / ".phantom-mesh" / "logs" / "phantom-ai-feed" / "seen-entries.json"
-)
+# The seen-store lives next to the validator cache (cache_path.parent), so it
+# tracks a custom --cache location rather than a fixed default.
 
 # Per-feed cap on remembered entry keys. A feed only ever surfaces its most
 # recent items, so an entry that scrolls off the window long ago won't reappear;
@@ -112,10 +111,12 @@ def run(
             continue
         out.changed += 1
         url = feed.get("url")
-        feed_seen = set(seen_store.get(url) or [])
+        prior_keys = list(seen_store.get(url) or [])  # single per-feed snapshot
+        feed_seen = set(prior_keys)
 
         feed_failed = 0
-        newly_captured: list[str] = []
+        captured_keys: list[str] = []
+        failed_keys: set[str] = set()
         for entry in payload:
             key = _dedup.entry_key(entry)
             # An empty key (no link, no title) has no stable identity -> always
@@ -127,12 +128,14 @@ def run(
             if res.status == "ok":
                 out.captured += 1
                 if key:
-                    newly_captured.append(key)
+                    captured_keys.append(key)
             elif res.status == "dry-run":
                 pass  # nothing written -> neither captured nor failed nor seen
             else:
                 out.capture_failed += 1
                 feed_failed += 1
+                if key:
+                    failed_keys.add(key)
 
         if feed_failed:
             # Roll this feed's validator back so it is re-fetched next run; the
@@ -142,11 +145,12 @@ def run(
             else:
                 cache.pop(url, None)
 
-        if newly_captured:
-            # Append only successfully-captured keys (a failed capture stays
-            # unseen so it is retried), then bound the per-feed list.
-            combined = list(seen_store.get(url) or []) + newly_captured
-            seen_store[url] = combined[-MAX_SEEN_PER_FEED:]
+        # Record ONLY keys that captured AND did not also fail this run: if two
+        # entries share a key and one failed, leave it unseen so it is retried
+        # (prefer a possible re-capture over silently losing the failed entry).
+        new_keys = [k for k in captured_keys if k not in failed_keys]
+        if new_keys:
+            seen_store[url] = (prior_keys + new_keys)[-MAX_SEEN_PER_FEED:]
 
     # Persist refreshed validators + seen-store so the next run can ask "changed
     # since last?" and "captured already?". A dry run writes nothing to FTS5, so

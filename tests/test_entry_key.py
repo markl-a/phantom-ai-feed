@@ -39,3 +39,13 @@ def test_entry_key_different_links_differ():
     assert dedup.entry_key({"link": "https://e/a"}) != dedup.entry_key(
         {"link": "https://e/b"}
     )
+
+
+def test_entry_key_distinct_titles_do_not_collide():
+    """The link-less fallback must be EXACT identity, not the fuzzy
+    stopword-stripped clustering used for cross-source merge — otherwise two
+    different stories whose content tokens coincide would be wrongly deduped
+    (silently dropping a real entry)."""
+    a = {"title": "A new X model", "link": None}
+    b = {"title": "New model X released", "link": None}
+    assert dedup.entry_key(a) != dedup.entry_key(b)
