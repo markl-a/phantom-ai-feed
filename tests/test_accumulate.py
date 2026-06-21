@@ -22,7 +22,7 @@ from phantom_ai_feed import fetch as _fetch  # noqa: E402
 
 
 def _ok(captured=None):
-    def _cap(entry, dry_run=False):
+    def _cap(entry, dry_run=False, **kw):
         if captured is not None:
             captured.append(entry)
         return _capture.CaptureResult(status="dry-run" if dry_run else "ok")
@@ -54,7 +54,7 @@ def test_accumulate_captures_changed_feed_entries(monkeypatch, tmp_path):
     monkeypatch.setattr(
         _accum._capture,
         "capture_entry",
-        lambda entry, dry_run=False: (
+        lambda entry, dry_run=False, **kw: (
             captured.append(entry) or _capture.CaptureResult(status="ok")
         ),
     )
@@ -76,7 +76,7 @@ def test_accumulate_skips_unchanged_feed(monkeypatch, tmp_path):
     monkeypatch.setattr(
         _accum._capture,
         "capture_entry",
-        lambda entry, dry_run=False: (
+        lambda entry, dry_run=False, **kw: (
             calls.update(n=calls["n"] + 1) or _capture.CaptureResult(status="ok")
         ),
     )
@@ -95,7 +95,7 @@ def test_accumulate_counts_errored_feed(monkeypatch, tmp_path):
     monkeypatch.setattr(
         _accum._capture,
         "capture_entry",
-        lambda entry, dry_run=False: _capture.CaptureResult(status="ok"),
+        lambda entry, dry_run=False, **kw: _capture.CaptureResult(status="ok"),
     )
     feed = {"name": "bad", "url": "https://e/bad"}
     _patch_feeds(monkeypatch, [(feed, OSError("boom"))])
@@ -116,7 +116,7 @@ def test_accumulate_passes_raw_entry_with_excerpt_to_capture(monkeypatch, tmp_pa
     monkeypatch.setattr(
         _accum._capture,
         "capture_entry",
-        lambda entry, dry_run=False: (
+        lambda entry, dry_run=False, **kw: (
             seen.append(entry) or _capture.CaptureResult(status="ok")
         ),
     )
@@ -146,7 +146,7 @@ def test_accumulate_dry_run_writes_nothing_and_skips_cache(monkeypatch, tmp_path
     monkeypatch.setattr(
         _accum._capture,
         "capture_entry",
-        lambda entry, dry_run=False: _capture.CaptureResult(
+        lambda entry, dry_run=False, **kw: _capture.CaptureResult(
             status="dry-run" if dry_run else "ok"
         ),
     )
@@ -177,7 +177,7 @@ def test_accumulate_reverts_validator_when_capture_fails(monkeypatch, tmp_path):
     monkeypatch.setattr(
         _accum._capture,
         "capture_entry",
-        lambda entry, dry_run=False: _capture.CaptureResult(status="no-cli"),
+        lambda entry, dry_run=False, **kw: _capture.CaptureResult(status="no-cli"),
     )
 
     res = _accum.run(Path("ignored.toml"), cache_path=cache_path)
@@ -202,7 +202,7 @@ def test_accumulate_persists_validator_cache(monkeypatch, tmp_path):
     monkeypatch.setattr(
         _accum._capture,
         "capture_entry",
-        lambda entry, dry_run=False: _capture.CaptureResult(status="ok"),
+        lambda entry, dry_run=False, **kw: _capture.CaptureResult(status="ok"),
     )
 
     _accum.run(Path("ignored.toml"), cache_path=cache_path)
@@ -217,7 +217,7 @@ def test_accumulate_counts_capture_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(
         _accum._capture,
         "capture_entry",
-        lambda entry, dry_run=False: _capture.CaptureResult(
+        lambda entry, dry_run=False, **kw: _capture.CaptureResult(
             status="no-cli", detail="phantom not on PATH"
         ),
     )
@@ -271,7 +271,7 @@ def test_accumulate_failed_capture_not_recorded_in_seen(monkeypatch, tmp_path):
     monkeypatch.setattr(
         _accum._capture,
         "capture_entry",
-        lambda entry, dry_run=False: _capture.CaptureResult(status="no-cli"),
+        lambda entry, dry_run=False, **kw: _capture.CaptureResult(status="no-cli"),
     )
     _patch_feeds(monkeypatch, [(feed, [_entry("a")])])
 
@@ -340,7 +340,7 @@ def test_accumulate_same_key_failure_not_recorded_in_seen(monkeypatch, tmp_path)
     monkeypatch.setattr(
         _accum._capture,
         "capture_entry",
-        lambda entry, dry_run=False: _capture.CaptureResult(status=next(statuses)),
+        lambda entry, dry_run=False, **kw: _capture.CaptureResult(status=next(statuses)),
     )
     _patch_feeds(monkeypatch, [(feed, [e1, e2])])
 
@@ -348,3 +348,23 @@ def test_accumulate_same_key_failure_not_recorded_in_seen(monkeypatch, tmp_path)
 
     store = _fetch.load_feed_cache(seen_path)
     assert _dedup.entry_key(e1) not in store.get("https://e/f", [])
+
+
+def test_accumulate_writes_to_local_store_path(monkeypatch, tmp_path):
+    """store_path routes REAL captures into a local SQLite FTS5 db (capture_entry
+    is NOT patched here) — integration of accumulate -> store -> recall."""
+    from phantom_ai_feed import store as _store
+
+    feed = {"name": "f", "url": "https://e/f"}
+    _patch_feeds(monkeypatch, [(feed, [_entry("RAG retrieval augmented generation")])])
+    db = tmp_path / "k.db"
+
+    res = _accum.run(
+        Path("ignored.toml"),
+        cache_path=tmp_path / "c.json",
+        seen_path=tmp_path / "s.json",
+        store_path=db,
+    )
+    assert res.captured == 1
+    rows = _store.recall("retrieval", db_path=db)
+    assert rows and rows[0]["source"] == "src"

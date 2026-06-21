@@ -20,19 +20,37 @@ DEFAULT_DB = (
 )
 
 # Stored columns. ``captured_at`` is UNINDEXED (kept for display/ordering, not
-# searched); the text columns are full-text indexed.
+# searched); the text columns are full-text indexed. The INSERT/SELECT SQL is
+# DERIVED from this tuple so the three never drift (a mismatch would silently
+# mislabel columns on read).
 _COLUMNS = ("title", "summary", "link", "source", "category", "captured_at")
 _CREATE = (
     "CREATE VIRTUAL TABLE IF NOT EXISTS entries USING fts5("
     "title, summary, link, source, category, captured_at UNINDEXED)"
+)
+_INSERT = (
+    f"INSERT INTO entries ({', '.join(_COLUMNS)}) "
+    f"VALUES ({', '.join('?' for _ in _COLUMNS)})"
+)
+_SELECT = (
+    f"SELECT {', '.join(_COLUMNS)} FROM entries "
+    "WHERE entries MATCH ? ORDER BY rank LIMIT ?"
 )
 
 
 def _connect(db_path: Path | str) -> sqlite3.Connection:
     p = Path(db_path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(str(p))
-    con.execute(_CREATE)
+    # timeout= sets SQLite's busy-timeout so a concurrent writer (the scheduled
+    # accumulate run) and reader (an interactive recall) wait briefly instead of
+    # erroring with "database is locked"; WAL lets them proceed concurrently.
+    con = sqlite3.connect(str(p), timeout=5.0)
+    try:
+        con.execute("PRAGMA journal_mode=WAL")
+        con.execute(_CREATE)
+    except sqlite3.Error:
+        con.close()  # don't leak the handle if schema setup fails
+        raise
     return con
 
 
@@ -55,12 +73,7 @@ def capture(entry: dict, *, db_path: Path | str = DEFAULT_DB, on: _dt.date | Non
     con = _connect(db_path)
     try:
         with con:
-            con.execute(
-                "INSERT INTO entries "
-                "(title, summary, link, source, category, captured_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                row,
-            )
+            con.execute(_INSERT, row)
     finally:
         con.close()
     return True
@@ -74,16 +87,15 @@ def recall(query: str, *, db_path: Path | str = DEFAULT_DB, limit: int = 10) -> 
     p = Path(db_path)
     if not p.exists():
         return []
-    con = _connect(db_path)
+    try:
+        con = _connect(db_path)
+    except sqlite3.Error:
+        return []  # corrupt/locked DB — best-effort recall yields nothing
     try:
         try:
-            cur = con.execute(
-                "SELECT title, summary, link, source, category, captured_at "
-                "FROM entries WHERE entries MATCH ? ORDER BY rank LIMIT ?",
-                (query, limit),
-            )
-            rows = cur.fetchall()
-        except sqlite3.OperationalError:
+            rows = con.execute(_SELECT, (query, limit)).fetchall()
+        except sqlite3.Error:
+            # Unparseable FTS5 query, or a corrupt DB surfacing on read.
             return []
     finally:
         con.close()

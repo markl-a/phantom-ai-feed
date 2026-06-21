@@ -121,11 +121,13 @@ def capture_entry(
 
 def _capture_local(entry: dict, db_path) -> CaptureResult:
     """Write the entry into the local SQLite FTS5 store. No daemon required."""
+    import sqlite3
+
     from . import store
 
     try:
         store.capture(entry, db_path=db_path or store.DEFAULT_DB)
-    except Exception as e:  # disk/DB error — surface, never raise into the run
+    except (sqlite3.Error, OSError) as e:  # disk/DB error — never raise into the run
         return CaptureResult(status="error", detail=str(e)[:200])
     return CaptureResult(status="ok")
 
