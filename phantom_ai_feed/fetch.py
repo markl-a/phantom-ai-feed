@@ -7,12 +7,14 @@ can compose fetch → summarize → write.
 from __future__ import annotations
 
 import html
+import json
 import os
 import re
 import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Iterable
 
@@ -113,17 +115,69 @@ def filter_feeds(feeds: Iterable[dict], *, strict: bool = False) -> list[dict]:
     return [f for f in feeds if f.get("optional") is not True]
 
 
-def _raw_http_get(url: str) -> bytes:
-    """The genuine single network fetch (no retries). Patched out in tests."""
-    # PHANTOM_AI_FEED_OFFLINE=1 forces a genuine no-network mode: skip the fetch
-    # immediately (fetch_all captures it per-feed) instead of hanging on timeouts.
+def _build_request(
+    url: str, *, etag: str | None = None, last_modified: str | None = None
+) -> urllib.request.Request:
+    """Build the GET request shared by the unconditional and conditional paths.
+
+    Single home for the offline-mode short-circuit, the User-Agent, and the
+    optional conditional validators, so the two fetch entry points cannot drift
+    (a UA bump or a new header is applied once, to both).
+
+    ``PHANTOM_AI_FEED_OFFLINE=1`` raises here so a no-network run fails fast
+    (captured per-feed by ``fetch_all``) instead of hanging on a timeout.
+    """
     if os.environ.get("PHANTOM_AI_FEED_OFFLINE") == "1":
         raise urllib.error.URLError(
             "offline mode (PHANTOM_AI_FEED_OFFLINE=1): network fetch skipped"
         )
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    headers = {"User-Agent": UA}
+    if etag:
+        headers["If-None-Match"] = etag
+    if last_modified:
+        headers["If-Modified-Since"] = last_modified
+    return urllib.request.Request(url, headers=headers)
+
+
+def _raw_http_get(url: str) -> bytes:
+    """The genuine single network fetch (no retries). Patched out in tests."""
+    req = _build_request(url)
     with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
         return resp.read()
+
+
+class NotModified(Exception):
+    """Signals an HTTP 304: the feed is unchanged since the cached validators.
+
+    Not an error — a successful "nothing new" answer. It is deliberately NOT a
+    subclass of ``URLError`` so the retry wrapper never retries it and callers
+    can tell it apart from a genuine fetch failure.
+    """
+
+
+def _raw_conditional_get(
+    url: str, *, etag: str | None = None, last_modified: str | None = None
+) -> tuple[bytes, str | None, str | None]:
+    """Single conditional GET. Sends ``If-None-Match`` / ``If-Modified-Since``
+    when prior validators are supplied so the server can answer 304.
+
+    Returns ``(body, new_etag, new_last_modified)`` on 200 (the fresh validators
+    come from the response headers and may be ``None``). Raises ``NotModified``
+    on 304; any other HTTP/transport error propagates unchanged (so the retry
+    wrapper can decide whether it is transient). No retries here — patched out
+    in tests, mirroring ``_raw_http_get``.
+    """
+    req = _build_request(url, etag=etag, last_modified=last_modified)
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
+            body = resp.read()
+            new_etag = resp.headers.get("ETag")
+            new_last_modified = resp.headers.get("Last-Modified")
+    except urllib.error.HTTPError as e:
+        if e.code == 304:
+            raise NotModified() from None
+        raise
+    return body, new_etag, new_last_modified
 
 
 def _is_retryable(err: Exception) -> bool:
@@ -140,17 +194,19 @@ def _is_retryable(err: Exception) -> bool:
     return False
 
 
-def _http_get(url: str, *, max_retries: int = MAX_RETRIES) -> bytes:
-    """Fetch ``url`` with bounded exponential backoff on transient errors
-    (HTTP 429, 5xx, timeouts). Non-retryable errors (e.g. 404) propagate at
-    once. After exhausting the budget, the last error is re-raised.
+def _retry(fn, *, max_retries: int = MAX_RETRIES):
+    """Run ``fn`` with bounded exponential backoff on transient errors (HTTP
+    429, 5xx, timeouts). Non-retryable errors (e.g. 404) propagate at once;
+    so does anything outside (URLError, TimeoutError, OSError) — notably
+    ``NotModified``, which is a successful 304, not a failure. After exhausting
+    the budget, the last error is re-raised.
 
     ``time.sleep`` is called between attempts (monkeypatched to a no-op in
     tests so the suite stays fast and offline)."""
     last: Exception | None = None
     for attempt in range(max_retries + 1):
         try:
-            return _raw_http_get(url)
+            return fn()
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             last = e
             if attempt >= max_retries or not _is_retryable(e):
@@ -160,6 +216,11 @@ def _http_get(url: str, *, max_retries: int = MAX_RETRIES) -> bytes:
     # Defensive: loop always returns or raises, but keep type-checkers happy.
     assert last is not None
     raise last
+
+
+def _http_get(url: str, *, max_retries: int = MAX_RETRIES) -> bytes:
+    """Fetch ``url`` (unconditional) with the shared retry/backoff policy."""
+    return _retry(lambda: _raw_http_get(url), max_retries=max_retries)
 
 
 def _text(el: ET.Element | None) -> str:
@@ -221,13 +282,41 @@ def _parse_entries(xml_bytes: bytes, top_n: int) -> list[dict]:
     return items[:top_n]
 
 
-def fetch_feed(feed: dict, top_n: int = TOP_N_DEFAULT) -> list[dict]:
+def fetch_feed(
+    feed: dict, top_n: int = TOP_N_DEFAULT, *, cache: dict | None = None
+) -> list[dict]:
     """Fetch one feed dict. Returns [{title, link, summary_excerpt, source}, ...].
 
     Raises urllib.error.URLError / OSError / TimeoutError on network failure;
     caller decides whether to swallow.
+
+    When ``cache`` (a ``{url: {"etag", "last_modified"}}`` mapping) is supplied,
+    the fetch is CONDITIONAL: prior validators are sent and the entry for this
+    URL is refreshed from the response on a 200. An HTTP 304 raises
+    ``NotModified`` (the cache entry is left intact), letting an accumulating
+    caller skip an unchanged feed without re-downloading it.
     """
-    raw = _http_get(feed["url"])
+    url = feed["url"]
+    if cache is None:
+        raw = _http_get(url)
+    else:
+        prior = cache.get(url) or {}
+        body, etag, last_modified = _retry(
+            lambda: _raw_conditional_get(
+                url,
+                etag=prior.get("etag"),
+                last_modified=prior.get("last_modified"),
+            )
+        )
+        # 200 path only (NotModified propagated above, leaving the cache as-is).
+        # Keep last-known-good validators when the response omits one, rather
+        # than clobbering them with None (which would silently downgrade this
+        # feed to unconditional refetch forever).
+        cache[url] = {
+            "etag": etag or prior.get("etag"),
+            "last_modified": last_modified or prior.get("last_modified"),
+        }
+        raw = body
     out = _parse_entries(raw, top_n)
     for e in out:
         e["source"] = feed.get("name", feed.get("url", "unknown"))
@@ -235,14 +324,80 @@ def fetch_feed(feed: dict, top_n: int = TOP_N_DEFAULT) -> list[dict]:
     return out
 
 
+# Upper bound on parallel feed fetches. Feeds are I/O-bound (each blocks on a
+# socket), so threads — not processes — are the right tool; the GIL is released
+# during the blocking read. Capped so a large feeds.toml can't open hundreds of
+# concurrent sockets.
+MAX_FETCH_WORKERS = 8
+
+
 def fetch_all(
-    feeds: Iterable[dict], top_n: int = TOP_N_DEFAULT
+    feeds: Iterable[dict],
+    top_n: int = TOP_N_DEFAULT,
+    *,
+    cache: dict | None = None,
+    max_workers: int | None = None,
 ) -> list[tuple[dict, list[dict] | Exception]]:
-    """Fetch every feed; per-feed error is captured (not raised)."""
-    results: list[tuple[dict, list[dict] | Exception]] = []
-    for f in feeds:
+    """Fetch every feed concurrently; per-feed error is captured (not raised).
+
+    Feeds are fetched in parallel on a bounded thread pool (they are I/O-bound,
+    so a single slow/timing-out feed no longer stalls the rest). The returned
+    list preserves INPUT order regardless of completion order, and each feed's
+    error is still isolated into its own slot exactly as the sequential version
+    did — and ANY per-feed failure is isolated, not just the network types: a
+    malformed feed (e.g. a missing ``url`` key → KeyError) lands in its own slot
+    instead of aborting the whole batch. ``max_workers`` defaults to
+    ``min(MAX_FETCH_WORKERS, len(feeds))``.
+
+    When ``cache`` is supplied the fetches are conditional (see ``fetch_feed``):
+    an unchanged feed surfaces as a ``NotModified`` payload in its slot (so a
+    consumer can skip it), and changed feeds refresh their validators in the
+    shared mapping. Each feed writes only its own URL key, so the concurrent
+    writes do not collide.
+    """
+    feed_list = list(feeds)
+    if not feed_list:
+        return []
+
+    workers = max_workers or min(MAX_FETCH_WORKERS, len(feed_list))
+
+    def _one(f: dict) -> list[dict] | Exception:
+        # Isolate EVERY per-feed failure (network errors, NotModified, and
+        # malformed-feed errors like KeyError) into this feed's own slot, so one
+        # bad feed can never crash fetch_all and take the whole run down.
         try:
-            results.append((f, fetch_feed(f, top_n)))
-        except (urllib.error.URLError, TimeoutError, OSError) as e:
-            results.append((f, e))
-    return results
+            return fetch_feed(f, top_n, cache=cache)
+        except Exception as e:  # noqa: BLE001 - deliberate per-feed isolation
+            return e
+
+    # executor.map preserves input order; results align with feed_list by index.
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        payloads = list(ex.map(_one, feed_list))
+    return list(zip(feed_list, payloads))
+
+
+def load_feed_cache(path: Path | str) -> dict:
+    """Load the ``{url: {"etag", "last_modified"}}`` validator cache from JSON.
+
+    A missing or unreadable/corrupt cache returns ``{}`` — the cache is a
+    best-effort optimisation, never a hard dependency, so a bad file just means
+    every feed is fetched unconditionally this run."""
+    p = Path(path)
+    if not p.exists():
+        return {}
+    try:
+        data = json.loads(p.read_text("utf-8"))
+    except (json.JSONDecodeError, OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_feed_cache(path: Path | str, cache: dict) -> Path:
+    """Persist the validator cache as pretty, stable-sorted JSON."""
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(
+        json.dumps(cache, indent=2, sort_keys=True, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return p

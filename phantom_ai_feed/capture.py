@@ -66,9 +66,13 @@ def _fold_text(entry: dict) -> str:
     captured row is attributable; empty title/summary/link fields are dropped.
     """
     source = (entry.get("source") or "").strip() or "phantom-ai-feed"
+    # Prefer an LLM ``summary`` (digest path) but fall back to the raw
+    # ``summary_excerpt`` (accumulation path feeds entries straight from fetch)
+    # so FTS5 always indexes the body text, not just the title.
+    body = (entry.get("summary") or entry.get("summary_excerpt") or "").strip()
     parts = [
         (entry.get("title") or "").strip(),
-        (entry.get("summary") or "").strip(),
+        body,
         (entry.get("link") or "").strip(),
         f"source: {source}",
     ]
