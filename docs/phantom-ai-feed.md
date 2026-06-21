@@ -2,7 +2,7 @@
 
 > 本檔為 phantom-ai-feed 唯一主文件(繁中);英文歷史狀態與舊版鏡像見 `docs/_archive/`。
 > ~198 筆的策展來源清單仍是獨立參考檔:[`docs/AI-SOURCES-CURATED.md`](AI-SOURCES-CURATED.md)。
-> 對應狀態:`master` @ `c628da2` — **103 passing tests**、13 個實體模組、單一入口 `python -m phantom_ai_feed.pipeline`、純 Python 3.11+ stdlib(無 runtime 相依)。每個「已出貨」項都對應 `master` 上的真實 commit 與 `phantom_ai_feed/` 中實際存在的模組。
+> 對應狀態:`master` @ `e0d5664` — **195 passing tests**、19 個實體模組、純 Python 3.11+ stdlib(無 runtime 相依)。引擎已從「攝取」一路打通到「**每天自動把 70 個 live 來源累積進本機 SQLite FTS5 知識庫 + 中英文 `recall` 查詢**」,並掛上 Windows 每日排程 —— **不需 phantom daemon**。每個「已出貨」項都對應 `master` 上的真實 commit 與 `phantom_ai_feed/` 中實際存在的模組。
 
 ## 目錄
 - [這是什麼](#這是什麼)
@@ -32,7 +32,7 @@ phantom-ai-feed 就是要把這份「手寫 AI 學習筆記」自動化、而且
 
 全部跑在你自己的機器上(local-first):資料落在 `~/.phantom-mesh/`,不上雲、不外洩。屬 phantom-mesh 生態系。
 
-> **誠實提醒(別灌水):** 今天**已經會動**的是「攝取 → 消化 → SRS 複習閉環 → 本機 RAG 召回」這條引擎(103 passing tests,在 `master @ c628da2`)。而「結構化的知識庫/面試庫成品」和「會主動補全/修正的 agent」目前是**方向與願景(尚未實作的 agentic 層)**,下面每一節都會把「已出貨」和「願景」清楚分開,不會混為一談。
+> **誠實提醒(別灌水):** 今天**已經會動**的是這條閉環:「攝取(70 個 live 來源:RSS/YouTube/Podcast/PTT/中文媒體)→ 消化 → 條件式抓取 + 去重 → **每天自動累積進本機 SQLite FTS5 知識庫** → 中英文 `recall` 查詢」,外加 SM-2 SRS 複習閉環(195 passing tests,`master @ e0d5664`;Windows 每日排程已掛上,**不需 phantom daemon**)。而「結構化的知識庫/面試庫成品」和「會主動補全/修正的 agent」仍是**方向與願景(尚未實作的 agentic 層)**,下面每一節都會把「已出貨」和「願景」清楚分開,不會混為一談。
 
 ---
 
@@ -171,15 +171,15 @@ ai-feed 最大化的是你的**認知資本**:讓你在 AI 這個變化最快的
 
 ### 願景 vs 已出貨(誠實分開)
 
-**已出貨(現況,grounded):** 引擎其實已經跑通了 —— 完整的 daily/weekly pipeline、SRS 閉環、FTS5 RAG capture,**103 passing tests**、13 個實體模組,都在 `master @ c628da2` 上。這不是 vaporware,是會動的引擎。今天真正能跑的是:**攝取 pipeline + SRS 複習閉環 + FTS5 RAG capture。**
+**已出貨(現況,grounded):** 引擎不只跑通,已經**自走**了 —— 完整 daily/weekly pipeline、SRS 閉環,加上 **2026-06 落地的三件大事**:(1) **70 個 live 來源**(原本 14)經併發 + 條件式抓取攝入;(2) **本機 SQLite FTS5 知識庫一等公民** —— `accumulate` 每天把新條目寫進 `~/.phantom-mesh/.../aifeed.db`(per-feed entry 去重),`recall` 中英文可查,**完全不需 phantom daemon**;(3) **Windows 每日排程**已掛上,每天 08:00 自動跑。**195 passing tests、19 個實體模組**,都在 `master @ e0d5664`。這不是 vaporware,是每天自己餵自己的活系統。
 
-**還是願景(尚未實作,標清楚):** 上面講的「結構化知識庫/面試庫成品」和「會主動補全/修正的 self-maintaining agent」**都是方向、不是已完成功能**(屬 agentic 層,尚未實作)。它們是這份文件指出的目標,不是現在 `python -m phantom_ai_feed.pipeline` 跑得出來的東西。請把它們當「規劃中」看待。
+**缺口已大幅收斂:** 原本「最大缺口 = 餵食不足(只抓 14 feed)」已解 —— 用三個純 stdlib resolver(YouTube channel-id / Podcast iTunes / blog 自動探測)從策展目錄批次接出 **70 個 reachability-verified 來源**。策展目錄 [`docs/AI-SOURCES-CURATED.md`](AI-SOURCES-CURATED.md) 還有更多可接(X/FB/WeChat 等封閉源除外),但「餵不飽」不再是頭號瓶頸。
 
-**真正的缺口(誠實面對):** 引擎成熟,但**餵食不足**。目前只抓 **14 個 feed**,而手上的策展目錄 [`docs/AI-SOURCES-CURATED.md`](AI-SOURCES-CURATED.md) 有 **~198 個來源** —— 廣度差約 **10 倍**。引擎強,但餵進去的料太少。
+**還是願景(尚未實作,標清楚):** 「結構化知識庫/面試庫成品」和「會主動補全/修正的 self-maintaining agent」**仍是方向、不是已完成功能**(屬 agentic 層,尚未實作)。它們是這份文件指出的目標,不是現在跑得出來的東西。請當「規劃中」看待。
 
-**#1 高值動作(願景的第一步,沒變):** 把 ~198 個策展來源接進 `sources/feeds.toml`。這是槓桿最高的單一動作 —— 純 stdlib、零新依賴,就能把廣度拉到約 10×,讓引擎真正吃飽。**先把料餵飽,後面的知識庫/面試庫/維護 agent 才有足夠的原料可長。**
+**#1 高值動作(已從「餵料」推進):** 餵料 + 一等公民 capture + 排程都已出貨。下一個高值動作不再是寫程式,而是**讓它每天自動跑、觀察累積一兩週**,再決定願景層(趨勢分析 / 知識庫結構化 / 維護 agent)先做哪個 —— 別在資料還薄時先蓋 schema。
 
-**更遠的願景(尚未出貨,標清楚):** 結構化知識庫條目化、面試庫沉澱成可餵 tutor 的成品、agent 主動補全/修正舊知識、把 FTS5 capture 從 best-effort 升為一等公民、read-vs-unread 學習訊號餵給 companion、真排程(cron/launchd)、手機投遞、可選 FSRS 升級。這些在下方〈狀態與視覺路線圖〉裡分階段標明,是「願景/計畫」而非「已完成」。
+**更遠的願景(尚未出貨,標清楚):** 結構化知識庫條目化、面試庫沉澱成可餵 tutor 的成品、agent 主動補全/修正舊知識、趨勢/需求分析層、read-vs-unread 學習訊號餵給 companion、手機投遞、逐字稿層(YouTube 字幕 / Podcast Whisper)、phantom daemon backend 接回、可選 FSRS 升級。這些在下方〈狀態與視覺路線圖〉裡分階段標明,是「願景/計畫」而非「已完成」。
 
 ---
 
@@ -219,15 +219,28 @@ python -m phantom_ai_feed.interview_questions --use-stub
 # 單一入口:一次跑完每日(digest → 面試題 → 註冊 SRS)
 python -m phantom_ai_feed.pipeline
 
+# 累積:條件式抓取 70 源 → 去重 → 寫進本機 FTS5 知識庫(不需 phantom daemon)
+python -m phantom_ai_feed.accumulate            # 真跑(寫入 aifeed.db)
+python -m phantom_ai_feed.accumulate --dry-run  # 預覽,零副作用
+
+# 召回:中英文全文搜尋你自己的知識庫
+python -m phantom_ai_feed.recall "RAG 最新進展"
+
+# Windows 每日排程(每天 08:00 自動累積)
+.\scripts\register-task.ps1                      # 啟用; -Unregister 移除
+
 pytest tests/ -v
 ```
 
 ### 寫入位置
 
 ```
-~/.phantom-mesh/logs/phantom-ai-feed/YYYY-MM-DD.md
-~/.phantom-mesh/logs/phantom-ai-feed/weekly-questions-YYYY-MM-DD.md
-~/.phantom-mesh/logs/phantom-ai-feed/srs-due-YYYY-MM-DD.md
+~/.phantom-mesh/logs/phantom-ai-feed/YYYY-MM-DD.md            # 每日 digest
+~/.phantom-mesh/logs/phantom-ai-feed/weekly-questions-*.md    # 每週面試題
+~/.phantom-mesh/logs/phantom-ai-feed/srs-due-*.md             # SRS due 卡
+~/.phantom-mesh/logs/phantom-ai-feed/aifeed.db               # 本機 FTS5 知識庫(accumulate 寫入,recall 查詢)
+~/.phantom-mesh/logs/phantom-ai-feed/fetch-cache.json         # 條件式 GET validator 快取
+~/.phantom-mesh/logs/phantom-ai-feed/seen-entries.json        # per-feed entry 去重 seen-store
 ```
 
 ### 30 秒 demo
@@ -243,17 +256,15 @@ cat docs/demo.cast | jq -r '.[] | select(.[1]=="o") | .[2]'
 ### 資料流(在 phantom-mesh 生態內)
 
 ```
-14 RSS sources (含中文來源)
-   ↓ phantom_ai_feed.fetch
+70 RSS/Atom 來源 (RSS・YouTube・Podcast・PTT・中文媒體)
+   ↓ phantom_ai_feed.fetch  (併發 + 條件式 GET ETag/Last-Modified)
 {title, link, summary, source}[]
-   ↓ phantom_ai_feed.summarize (phantom exec → Gemini Flash → stub fallback)
-Markdown digest
-   ↓ phantom_ai_feed.digest
-~/.phantom-mesh/logs/phantom-ai-feed/<date>.md   ←→  phantom event capture → FTS5
-                                                              ↓
-                                  phantom-companion ⑦ 讀作學習行為訊號
-                                  phantom-mesh agent 回答可引用
-                                  (願景)結構化進知識庫/面試庫 → 餵 tutor
+   ├─→ phantom_ai_feed.digest → summarize → ~/.phantom-mesh/logs/.../<date>.md   (每日 digest)
+   └─→ phantom_ai_feed.accumulate  (per-feed entry 去重)
+          ↓ capture (backend=local,預設)
+       本機 SQLite FTS5  ~/.phantom-mesh/logs/phantom-ai-feed/aifeed.db
+          ↓ phantom_ai_feed.recall  "<query>"  (中英文全文搜尋,不需 daemon)
+       召回結果(可餵 mesh agent / 之後接 phantom backend / 結構化進知識庫=願景)
 ```
 
 > ⚠️ **同名 scaffold(勿混淆):** `~/Documents/GitHub/hailmary/phantom-ai-feed/` 是更早的 cron-only RSS heartbeat(launchd 已綁定,請勿移動)。本 repo 是它的 LLM-enabled 後繼者,最終會接手 cron。
@@ -265,29 +276,22 @@ Markdown digest
 > 排序原則(依單人多機開發模型):**便宜高值先 → 護城河先(owned-memory + SRS) → 知識庫/面試庫/維護 agent → 需外部 API/操作者決策後。**
 > 每個「已出貨」項對應 `master` 上的真實 commit 與 `phantom_ai_feed/` 中實際存在的模組,無虛構。
 > 開發模型:**寫 = codex/claude;審 = codex + agy + claude(任意 ≥2 distinct-AI LGTM 才落地);governor + 雙閘 → 手機核准。** 分支開發、不直推 main。
-> **一句話定位本節:** 引擎已成熟(✅),最大缺口是「餵食不足」—— 故 **#1 move = 策展目錄 → `feeds.toml`**;而「結構化知識庫/面試庫成品」與「主動補全/修正 agent」都在規劃階段(願景,未出貨)。
+> **一句話定位本節:** 引擎已成熟且**自走**(✅)—— 餵料(14→70 源)、本機 FTS5 一等公民 capture、`recall` 查詢、Windows 每日排程**都已出貨**。原「餵食不足」缺口已解;下一步是**觀察累積後**再做「結構化知識庫/面試庫成品」與「主動補全/修正 agent」(仍是願景,未出貨)。
 
 ### 狀態流(Mermaid)
 
 ```mermaid
 flowchart TD
-    subgraph DONE["✅ 已出貨 (engine 成熟)"]
+    subgraph DONE["✅ 已出貨 (engine 自走)"]
         A1["單一入口 pipeline.py<br/>daily/weekly 串接、stop-on-error"]
-        A2["RSS/Atom fetch 14 源<br/>純 stdlib・含中文源・offline"]
+        A2["RSS/Atom fetch 70 源<br/>併發 + 條件式GET・含中文/YT/Podcast/PTT"]
         A3["summarize: phantom exec→Gemini→stub fallback"]
         A4["daily/weekly digest<br/>dedup + credibility 排序"]
         A5["SM-2 SRS 閉環<br/>每日重新浮現 due 卡"]
-        A6["interview Q 生成 + newsletter 草稿<br/>+ FTS5 capture + eval + CI"]
-    end
-
-    subgraph P1["🚧 階段一:餵飽引擎 (便宜・高值・無外部依賴)"]
-        B1["把 docs/AI-SOURCES-CURATED.md(~198 筆)<br/>橋接成真正的 feeds.toml"]
-        B2["reachability 驗證 + --strict 守核心源"]
-    end
-
-    subgraph P2["📅 階段二:加深護城河 (需設計)"]
-        C1["FTS5 capture 升為一等公民<br/>recall 與 SRS-due 共用同一 store"]
-        C2["read-vs-unread 訊號 → phantom-companion"]
+        A6["interview Q 生成 + newsletter 草稿<br/>+ eval + CI"]
+        A7["accumulate:條件式抓取 → per-feed entry 去重<br/>→ 本機 SQLite FTS5 (不需 daemon)"]
+        A8["recall:本機 FTS5 中英文全文搜尋 CLI"]
+        A9["sources resolvers (YouTube/Podcast/blog 探測)<br/>+ Windows 每日排程"]
     end
 
     subgraph P25["🧱 階段二點五:結構化知識庫/面試庫 (願景・agentic)"]
@@ -303,25 +307,24 @@ flowchart TD
         D3["候選:FSRS 取代手寫 SM-2 / 多模態(YouTube+Whisper) / Substack 發佈鉤"]
     end
 
-    DONE --> P1 --> P2 --> P25 --> P3
-    A4 -.滋養.-> B1
+    DONE --> P25 --> P3
     A4 -.條目化.-> E1
     A6 -.沉澱.-> E2
-    C1 -.被維護.-> E3
+    A7 -.被維護.-> E3
     A4 -.時間軸聚合.-> E4
     E4 -.餵 wealth-score.-> E2
     A5 -.候選升級.-> D3
-    C1 -.投餵.-> D2
+    A7 -.投餵.-> D2
 ```
 
 ### ✅ 已出貨(grounded,對應真實模組)
 
-整條每日/每週 pipeline 已從單一入口端到端運行。版本 `0.2.0-alpha`、測試 **103 passing**、13 個實體模組。
+整條 攝取 → 累積 → 召回 閉環已端到端運行(每日 Windows 排程自走)。版本 `0.2.0-alpha`、測試 **195 passing**、19 個實體模組。
 
 | 項目 | 具體內容 | 對應模組 |
 |---|---|---|
 | 單一入口 orchestrator | `python -m phantom_ai_feed.pipeline` 串接(每日:digest → interview-questions `--register-srs`;每週加 weekly → newsletter),stop-on-first-error。實現「daemon-friendly 單一排程呼叫」 | `pipeline.py` |
-| RSS/Atom 抓取 | 14 feeds(含中文 `zh` 源 + `optional`-flag 廣度源)、上限 retry/backoff、保留 inline-tag 後文字的 HTML 去標籤、per-feed 狀態計數、`PHANTOM_AI_FEED_OFFLINE=1` | `fetch.py` |
+| RSS/Atom 抓取 | **70 feeds**(RSS/YouTube/Podcast/PTT/中文媒體;含 `optional`-flag 廣度源)、**併發抓取(ThreadPoolExecutor)+ 條件式 GET(ETag/Last-Modified,304 跳過)**、retry/backoff、HTML 去標籤、per-feed 狀態計數、`PHANTOM_AI_FEED_OFFLINE=1` | `fetch.py` |
 | 摘要 | `phantom exec` → Gemini Flash REST → stdlib 抽取式 stub fallback(degrade-don't-crash,免金鑰) | `summarize.py` |
 | 每日 digest | fetch → summarize → 寫 Markdown + best-effort phantom capture;浮現 dedup + credibility「Top picks」 | `digest.py` |
 | 每週 digest | fetch wide → 跨來源 dedup/分群 → credibility 排序 → 單次 LLM pass;浮現 credibility + corroboration | `weekly.py` |
@@ -330,27 +333,32 @@ flowchart TD
 | 面試題產生器 | 週末由本週 digests 生成;`--register-srs` 種入複習卡(= 面試庫的雛形,尚未沉澱成長期成品) | `interview_questions.py` |
 | SM-2 間隔複習 | `srs answer` / `srs due` CLI;每日 pipeline 現會**重新浮現 due 卡**(`srs-due-<date>.md`),閉合 SRS 迴圈(非 write-only) | `srs.py` |
 | newsletter 草稿 | 由每週 digest + 面試題組出 Substack-style 草稿;無內部 provenance 洩入 reader 草稿(human-in-the-loop,never autopilot) | `newsletter.py` |
-| FTS5 capture adapter | 把 entry fold 進 phantom store(unit-tested CLI seam)= 知識庫的底層儲存 | `capture.py` |
+| **累積路徑(一等公民)** | `python -m phantom_ai_feed.accumulate`:條件式抓取 70 源 → **per-feed entry 去重(持久 seen-store)** → 寫進本機 FTS5;capture 失敗會回滾 validator(避免被 304 永久跳過);dry-run 零副作用 | `accumulate.py` |
+| **本機 SQLite FTS5 store** | 純 stdlib `sqlite3` FTS5 知識庫(`aifeed.db`),**不需 phantom daemon**;busy_timeout + WAL 支援併發讀寫 | `store.py` |
+| **recall 召回** | `python -m phantom_ai_feed.recall "<query>"`:FTS5 MATCH + **中文 LIKE substring fallback**(2 字中文也查得到)、stdout/stderr UTF-8 | `recall.py` |
+| 來源 resolvers | YouTube `@handle`→channel_id、Podcast iTunes lookup→feedUrl、blog feed 自動探測;產生 feeds.toml 條目的 generate-time 工具 | `resolvers/` |
+| capture backend | `backend="local"`(預設,本機 FTS5)或 `"phantom"`(mesh CLI seam,需 daemon);digest 仍走 phantom backend | `capture.py` |
+| Windows 每日排程 | `scripts/register-task.ps1` 註冊每日 08:00 工作 → `run-accumulate.ps1`;S4U、StartWhenAvailable 補跑;實證每日自走 | `scripts/` |
 | Eval harness | 對真實 ~20-Q gold set 評分(coverage / category-mix / dup metrics + 校準 pass/fail) | `eval.py` |
 | `--strict` run | optional `feed` flag 受理,strict run 只要求核心 feed 集可達 | (CLI flag) |
 | Mesh round-trip test | gated LIVE `capture_entry → phantom serve → recall` 整合測試(Windows/no-provider skip;HOME-isolated;hermetic) | (integration test) |
 | CI | GitHub Actions pytest workflow + badge;asciinema demo cast | `docs/demo.cast` |
 
-### 🚧 階段一 — 餵飽引擎(高值・便宜・零外部依賴)
+### ✅ 階段一 — 餵飽引擎(已出貨,2026-06)
 
-> 這是 **#1 高值動作**:引擎已成熟但餵食不足(只抓 14 feed,策展目錄有 ~198,廣度約 10× 落差)。把料餵飽,引擎立刻發揮全力,知識庫/面試庫也才有足夠原料可長。
+> **已完成。** 原本只抓 14 feed;現用三個純 stdlib resolver(YouTube/Podcast/blog 探測)從策展目錄批次接出 **70 個 reachability-verified 來源**,全標 `optional` 讓 `--strict` 仍只要求 9 核心。死掉的 zh 源已修(機器之心 RSS 轉 HTML / rsshub 403 / HF-zh 404 → 移除,改用 量子位/雷锋网/36氪/掘金/InfoQ 等活源)。
 
 | 目標 | 具體項 | 在哪台機 + 哪 AI | 風險 / 前置 |
 |---|---|---|---|
 | 把策展目錄變成活的日報 | 解析 [`docs/AI-SOURCES-CURATED.md`](AI-SOURCES-CURATED.md)(~198 筆) → 產生 `sources/feeds.toml` 條目(有原生 RSS 用之;無則 RSSHub route 或略過) | Win 節點寫 Python・codex 主筆;編排節點(Win)編排+把關 | 部分來源無公開 feed(WeChat/FB 封閉);**前置=逐一 re-verify URL**(策展檔已警告會漂移) |
 | 不讓雜訊淹沒 | reachability 檢查 + `--strict` 只要求核心源可達 | Win 節點・codex 寫 / agy+codex 審 | 來源變多≠變好;**靠既有 dedup + credibility 排序**,別硬加廣度 |
 
-### 📅 階段二 — 加深護城河(owned-memory + SRS;需設計)
+### 階段二 — 加深護城河(owned-memory + SRS)
 
-| 目標 | 具體項 | 在哪台機 + 哪 AI | 風險 / 前置 |
-|---|---|---|---|
-| owned-memory 一等公民 | digest capture 寫入 FTS5 從 best-effort 升為主路徑;recall 與 `srs due` 共用同一 store | Mac 節點 或 Win 節點・claude 寫 / codex+agy 審 | 跨平台 HOME 隔離 + EventKey flakiness(已知坑);**前置=mesh round-trip 測試綠** |
-| 學習行為訊號 | read-vs-unread 比例分析 → 餵給 phantom-companion ⑦ | 編排節點(Win)編排・claude 設計 / codex 審 | 需 companion 端介面;**前置=companion 整合點確認** |
+| 目標 | 狀態 | 具體項 |
+|---|---|---|
+| owned-memory 一等公民 | ✅ **已出貨** | `accumulate` 把條件式抓取的新條目經 per-feed 去重寫進**本機 SQLite FTS5**(`store.py`);`recall` 中英文查詢(`recall.py`)。預設 `backend="local"`,**不需 phantom daemon**;`backend="phantom"` 之後接回 mesh 加密 store + 與 `srs due` 共用同一 store(待 daemon 接回時) |
+| 學習行為訊號 | 📅 待做 | read-vs-unread 比例分析 → 餵給 phantom-companion ⑦(需 companion 端介面) |
 
 ### 🧱 階段二點五 — 結構化知識庫 / 面試庫 + 主動維護 agent(願景・agentic,尚未實作)
 
@@ -378,7 +386,7 @@ flowchart TD
 ## 開源生態與方向
 
 > 快照 2026-06-19。star 數／授權在標註處皆經 web fetch 驗證;預期會 drift —— **採用任何相依前請重新驗證**,無法直接確認者標 `[unverified]`。本節為決策輔助,非規格書 —— 專案狀態以上方〈狀態與視覺路線圖〉為準。
-> **攝取來源清單(策展種子,~198 筆 newsletters/blogs/YouTube/X/papers/CN/JP/zh/aggregators)獨立保存於 [`docs/AI-SOURCES-CURATED.md`](AI-SOURCES-CURATED.md)** —— 它是 pipeline 的種子內容(複利迴圈第一步「攝取」的來源池),槓桿最高但尚未動用的資產(目前只抓 14-feed,策展目錄廣度約 10×)。本檔只**連結**它、不把那 198 筆折進來(它是資料/種子,不是文件版本)。
+> **攝取來源清單(策展種子,~198 筆 newsletters/blogs/YouTube/X/papers/CN/JP/zh/aggregators)獨立保存於 [`docs/AI-SOURCES-CURATED.md`](AI-SOURCES-CURATED.md)** —— 它是 pipeline 的種子內容(複利迴圈第一步「攝取」的來源池)。**2026-06 已用 resolver 從中批次接出 70 個 live 來源(14→70)**;其餘多為 X/FB/WeChat 等封閉源(無原生 RSS)。本檔只**連結**它、不把那 198 筆折進來(它是資料/種子,不是文件版本)。
 
 **一句話論點:別造 reader、別造 aggregator framework、也別造 flashcard app —— 那些都已存在且十分優秀。要造的是那條薄的、受治理的、local-first 迴圈,把策展 AI 來源清單 → LLM digest → owned-memory → SRS →(願景)結構化知識庫/面試庫 + 主動維護 agent 串起來,這是沒有人為自己機器上的 zh-language 工程師所做的事。**
 
@@ -421,9 +429,9 @@ flowchart TD
 
 | 決策 | 內容 | 原因 |
 |---|---|---|
-| **BUILD(便宜、高值)** | 把 [`docs/AI-SOURCES-CURATED.md`](AI-SOURCES-CURATED.md) → 真實 feed 接起來(解析成 `sources/feeds.toml`;有原生 RSS 就用,沒有走 RSSHub route 或略過) | 槓桿最高的單一動作。引擎已存在,只是餵食不足。靜態文件 → 廣度約 10× 的活躍 digest。純 stdlib + 一個 parser。 |
-| **BUILD(護城河)** | 深化 owned-memory + SRS:digest capture 寫入 FTS5 升為一等公民,recall 與 SRS-due 讀同一 store | apex-② owned-memory 的差異化,真正的利基。無競爭者在本地把個人 digest 與 owned-memory + SRS 配對。 |
-| **BUILD(願景・agentic)** | 結構化知識庫/面試庫 + 主動補全/修正 agent(把散落記錄升為條目化知識點;面試庫餵 tutor;agent 補缺口、修過時) | 真正的脊椎差異化:沒有人為 zh 工程師做「會自己長大 + 自己修正」的本機知識庫。**但屬願景,需先完成餵料 + owned-memory 一等公民,且改寫須過 governor。** |
+| ✅ **DONE(便宜、高值)** | 把 [`docs/AI-SOURCES-CURATED.md`](AI-SOURCES-CURATED.md) → 真實 feed 接起來 | **已出貨(2026-06)。** 三個 stdlib resolver 批次接出 70 個 live 源(14→70);純 stdlib、零新依賴。 |
+| ✅ **DONE(護城河)** | 深化 owned-memory:capture 升為一等公民、recall 查詢 | **已出貨。** `accumulate` → 本機 SQLite FTS5(`store.py`)、`recall` 中英文查詢、Windows 每日排程;不需 daemon。與 SRS-due 共用同一 store 待 phantom backend 接回。 |
+| **BUILD(願景・agentic,下一步)** | 結構化知識庫/面試庫 + 主動補全/修正 agent(把散落記錄升為條目化知識點;面試庫餵 tutor;agent 補缺口、修過時) | 真正的脊椎差異化:沒有人為 zh 工程師做「會自己長大 + 自己修正」的本機知識庫。**餵料 + owned-memory 一等公民已完成;下一步先觀察累積資料,再建 schema,且改寫須過 governor。** |
 | **WRAP / REUSE** | phantom-mesh 遞送 + 治理:digest 遞送與「publish」用 mesh phone notify/inbox + governor double-gate,而非新增 Telegram bot | 上游已建好;reuse 勝過 rebuild。publish 維持 human-in-the-loop。 |
 | **REFERENCE(別相依)** | smol.ai AI News(digest 品質)、Precis(handler/notification 設計)、Kagi News(RSS→LLM 觀念)、RSSHub(feed-less 逃生口) | 偷形狀,別偷程式碼。讓相依表面趨近於零(當前賣點:純 stdlib)。 |
 | **ADOPT LATER** | FSRS(`free-spaced-repetition-scheduler`,MIT)替換手寫 SM-2 | 真實效率提升,但只在累積複習歷史後才有意義;現在太早。候選,非承諾。 |
@@ -449,7 +457,7 @@ flowchart TD
 | 全自動 Substack 發佈 | 違反 human-in-the-loop;auth + send 維持手動 | — |
 | 加依賴(Telegram/RSSHub/FSRS) | 現「純 stdlib 免安裝」是真賣點,每加一項都增表面積;每項落地前須過 mesh-primitive 門檻 | mesh notify/inbox |
 
-**最大風險 = 範圍蔓延成通用 reader / aggregator / flashcard 框架。** 那些都已存在且資源更充足;重造任一即放棄 local-first + 單人 + zh 聚焦的真正利基。護城河(owned-memory + SRS + governed digest)在*架構上*已存在,但只被*部分*發揮 —— 把策展目錄接成活 feed、把 FTS5 capture 升為一等公民,就是兌現它(讓複利迴圈真正轉起來);再往上,把它結構化成會自我補全/修正的知識庫 + 面試庫(願景),才是把「你的手寫 AI 學習筆記」真正升級成「會自己長大 + 自己修正」的版本 —— 而非另起爐灶。
+**最大風險 = 範圍蔓延成通用 reader / aggregator / flashcard 框架。** 那些都已存在且資源更充足;重造任一即放棄 local-first + 單人 + zh 聚焦的真正利基。護城河(owned-memory + SRS + governed digest)**已被兌現** —— 策展目錄已接成 70 個活 feed、FTS5 capture 已是一等公民(本機 store + recall + 每日排程,複利迴圈真正轉起來了);再往上,把它結構化成會自我補全/修正的知識庫 + 面試庫(願景),才是把「你的手寫 AI 學習筆記」真正升級成「會自己長大 + 自己修正」的版本 —— 而非另起爐灶。
 
 ---
 
