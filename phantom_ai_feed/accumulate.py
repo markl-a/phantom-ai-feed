@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import capture as _capture
+from . import dedup as _dedup
 from . import fetch as _fetch
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -40,6 +41,13 @@ DEFAULT_FEEDS = REPO_ROOT / "sources" / "feeds.toml"
 DEFAULT_CACHE = (
     Path.home() / ".phantom-mesh" / "logs" / "phantom-ai-feed" / "fetch-cache.json"
 )
+# The seen-store lives next to the validator cache (cache_path.parent), so it
+# tracks a custom --cache location rather than a fixed default.
+
+# Per-feed cap on remembered entry keys. A feed only ever surfaces its most
+# recent items, so an entry that scrolls off the window long ago won't reappear;
+# bounding the seen-list keeps the store from growing without limit.
+MAX_SEEN_PER_FEED = 200
 
 
 @dataclass
@@ -49,8 +57,9 @@ class AccumulateResult:
     - ``changed``        feeds that returned new content (HTTP 200)
     - ``unchanged``      feeds skipped via HTTP 304 (NotModified)
     - ``errored``        feeds whose fetch failed
-    - ``captured``       entries successfully written into FTS5
-    - ``capture_failed`` entries whose capture failed (e.g. no phantom CLI)
+    - ``captured``         entries successfully written into FTS5
+    - ``capture_failed``   entries whose capture failed (e.g. no phantom CLI)
+    - ``skipped_duplicate`` entries skipped as already-seen for that feed
     """
 
     changed: int = 0
@@ -58,6 +67,7 @@ class AccumulateResult:
     errored: int = 0
     captured: int = 0
     capture_failed: int = 0
+    skipped_duplicate: int = 0
 
     @property
     def total_feeds(self) -> int:
@@ -68,6 +78,7 @@ def run(
     feeds_toml: Path = DEFAULT_FEEDS,
     *,
     cache_path: Path = DEFAULT_CACHE,
+    seen_path: Path | None = None,
     top_n: int = 3,
     strict: bool = False,
     dry_run: bool = False,
@@ -76,12 +87,18 @@ def run(
     if not feeds:
         raise SystemExit(f"no [[feed]] entries in {feeds_toml}")
 
+    seen_path = Path(seen_path) if seen_path else Path(cache_path).parent / "seen-entries.json"
+
     cache = _fetch.load_feed_cache(cache_path)
     # Snapshot validators BEFORE fetch_all mutates the cache in place, so a feed
     # whose entries fail to capture can be rolled back to its prior validator
     # (or dropped) — otherwise next run's 304 would skip entries that never
     # actually reached FTS5.
     prior = {k: dict(v) for k, v in cache.items() if isinstance(v, dict)}
+    # Per-feed seen-store {url: [entry_key, ...]} for cross-RUN entry dedup: a
+    # changed (200) feed's top-N overlaps day to day, so without this its
+    # repeated entries would be re-captured into the append-only FTS5 store.
+    seen_store = _fetch.load_json_store(seen_path)
     results = _fetch.fetch_all(feeds, top_n=top_n, cache=cache)
 
     out = AccumulateResult()
@@ -93,30 +110,55 @@ def run(
             out.errored += 1
             continue
         out.changed += 1
+        url = feed.get("url")
+        prior_keys = list(seen_store.get(url) or [])  # single per-feed snapshot
+        feed_seen = set(prior_keys)
+
         feed_failed = 0
+        captured_keys: list[str] = []
+        failed_keys: set[str] = set()
         for entry in payload:
+            key = _dedup.entry_key(entry)
+            # An empty key (no link, no title) has no stable identity -> always
+            # treated as new (cannot be deduped). Otherwise skip if already seen.
+            if key and key in feed_seen:
+                out.skipped_duplicate += 1
+                continue
             res = _capture.capture_entry(entry, dry_run=dry_run)
             if res.status == "ok":
                 out.captured += 1
+                if key:
+                    captured_keys.append(key)
             elif res.status == "dry-run":
-                pass  # nothing written -> neither captured nor failed
+                pass  # nothing written -> neither captured nor failed nor seen
             else:
                 out.capture_failed += 1
                 feed_failed += 1
+                if key:
+                    failed_keys.add(key)
+
         if feed_failed:
             # Roll this feed's validator back so it is re-fetched next run; the
             # uncaptured entries must not be hidden behind a future 304.
-            url = feed.get("url")
             if url in prior:
                 cache[url] = prior[url]
             else:
                 cache.pop(url, None)
 
-    # Persist refreshed validators so the next run can ask "changed since last?".
-    # A dry run writes nothing to FTS5, so it must NOT persist validators either
-    # (a later real run would otherwise 304-skip feeds it never captured).
+        # Record ONLY keys that captured AND did not also fail this run: if two
+        # entries share a key and one failed, leave it unseen so it is retried
+        # (prefer a possible re-capture over silently losing the failed entry).
+        new_keys = [k for k in captured_keys if k not in failed_keys]
+        if new_keys:
+            seen_store[url] = (prior_keys + new_keys)[-MAX_SEEN_PER_FEED:]
+
+    # Persist refreshed validators + seen-store so the next run can ask "changed
+    # since last?" and "captured already?". A dry run writes nothing to FTS5, so
+    # it must NOT persist either (a later real run would otherwise 304-skip or
+    # dedup-skip feeds/entries it never actually captured).
     if not dry_run:
         _fetch.save_feed_cache(cache_path, cache)
+        _fetch.save_json_store(seen_path, seen_store)
     return out
 
 
@@ -126,6 +168,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--feeds", type=Path, default=DEFAULT_FEEDS)
     ap.add_argument("--cache", type=Path, default=DEFAULT_CACHE, dest="cache_path")
+    ap.add_argument("--seen", type=Path, default=None, dest="seen_path",
+                    help="per-feed dedup seen-store (default: next to --cache)")
     ap.add_argument("--top-n", type=int, default=3)
     ap.add_argument("--strict", action="store_true",
                     help="skip feeds flagged optional=true in feeds.toml")
@@ -136,6 +180,7 @@ def main(argv: list[str] | None = None) -> int:
     res = run(
         feeds_toml=args.feeds,
         cache_path=args.cache_path,
+        seen_path=args.seen_path,
         top_n=args.top_n,
         strict=args.strict,
         dry_run=args.dry_run,
@@ -143,6 +188,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"accumulate: {res.changed} changed, {res.unchanged} unchanged, "
         f"{res.errored} error feeds; captured {res.captured} entries"
+        + (f", skipped {res.skipped_duplicate} duplicates" if res.skipped_duplicate else "")
         + (f" ({res.capture_failed} capture failures)" if res.capture_failed else "")
     )
     return 0

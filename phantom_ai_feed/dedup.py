@@ -87,6 +87,29 @@ def normalize_url(url: str | None) -> str:
     return urlunsplit(("", host, path, query, "")).lstrip("/") or host
 
 
+def entry_key(entry: dict) -> str:
+    """Stable per-entry identity for cross-RUN dedup (distinct from the in-run
+    cross-source clustering above).
+
+    Prefers the normalised link (reusing ``normalize_url``); falls back to the
+    EXACT normalised title when there is no link. Returns ``""`` when there is
+    neither — the caller treats an empty key as "always new" (an entry with no
+    stable identity cannot be deduped).
+    """
+    norm = normalize_url(entry.get("link"))
+    if norm:
+        return norm
+    # Fall back to the EXACT normalised title (whitespace-collapsed, casefolded)
+    # — NOT the stopword-stripped token set used for fuzzy cross-source
+    # clustering: identity must be exact, or two different link-less stories
+    # whose content words coincide ("A new X model" vs "New model X released")
+    # would collide and one would be silently dropped.
+    title = " ".join((entry.get("title") or "").split()).casefold()
+    if title:
+        return "t:" + title
+    return ""
+
+
 def _is_tracking_key(key: str) -> bool:
     k = key.lower()
     return k in _TRACKING_KEYS or any(k.startswith(p) for p in _TRACKING_PREFIXES)
