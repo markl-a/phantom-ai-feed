@@ -97,3 +97,56 @@ name      = "arxiv-cs-LG"         # machine learning (broad)
 url       = "http://export.arxiv.org/rss/cs.LG"
 category  = "research"
 optional  = true
+
+# ---------------------------------------------------------------------------
+# Multi-platform breadth (Phase 1 source expansion) — all reachability-verified
+# 2026-06 and flagged optional=true so a --strict run still only requires the
+# original core set. See docs/_drafts/source-expansion-design.md.
+#
+# YouTube: native per-channel Atom feed (feeds/videos.xml?channel_id=UC...).
+#   channel_id resolved from @handle via phantom_ai_feed.resolvers.youtube.
+# Podcast: canonical RSS resolved via phantom_ai_feed.resolvers.podcast (iTunes).
+# PTT: native per-board Atom (ptt.cc/atom/<Board>.xml; bypasses the over18 gate).
+# ---------------------------------------------------------------------------
+
+[[feed]]
+name      = "yt-two-minute-papers"   # @TwoMinutePapers — AI/graphics research tours
+url       = "https://www.youtube.com/feeds/videos.xml?channel_id=UCbfYPyITQ-7l4upoX8nvctg"
+category  = "youtube"
+optional  = true
+
+[[feed]]
+name      = "yt-andrej-karpathy"     # @AndrejKarpathy — LLMs from scratch
+url       = "https://www.youtube.com/feeds/videos.xml?channel_id=UCXUPKJO5MZQN11PqgIvyuvQ"
+category  = "youtube"
+optional  = true
+
+[[feed]]
+name      = "podcast-latent-space"   # Latent Space — AI engineering
+url       = "https://api.substack.com/feed/podcast/1084089.rss"
+category  = "podcast"
+optional  = true
+
+[[feed]]
+name      = "podcast-lex-fridman"    # Lex Fridman — long-form AI interviews
+url       = "https://lexfridman.com/feed/podcast/"
+category  = "podcast"
+optional  = true
+
+[[feed]]
+name      = "ptt-Tech_Job"           # PTT 科技業板 — JD / industry trends (zh-TW)
+url       = "https://www.ptt.cc/atom/Tech_Job.xml"
+category  = "ptt"
+optional  = true
+
+[[feed]]
+name      = "ptt-Soft_Job"           # PTT 軟體工程板 (zh-TW)
+url       = "https://www.ptt.cc/atom/Soft_Job.xml"
+category  = "ptt"
+optional  = true
+
+[[feed]]
+name      = "ptt-DataScience"        # PTT 資料科學板 (zh-TW)
+url       = "https://www.ptt.cc/atom/DataScience.xml"
+category  = "ptt"
+optional  = true
