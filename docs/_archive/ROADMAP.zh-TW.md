@@ -58,23 +58,23 @@ flowchart TD
 
 | 目標 | 具體項 | 在哪台機 + 哪 AI | 風險 / 前置 |
 |---|---|---|---|
-| 把策展目錄變成活的日報 | 解析 `docs/AI-SOURCES-CURATED.md` → 產生 `sources/feeds.toml` 條目(有原生 RSS 用之;無則 RSSHub route 或略過) | acer/ayaneo(Win)寫 Python・codex 主筆;z13 編排+把關 | 部分來源無公開 feed(WeChat/FB 封閉);**前置=逐一 re-verify URL**(策展檔已警告會漂移) |
-| 不讓雜訊淹沒 | reachability 檢查 + `--strict` 只要求核心源可達 | acer・codex 寫 / agy+codex 審 | 來源變多≠變好;**靠既有 dedup + credibility 排序**,別硬加廣度 |
+| 把策展目錄變成活的日報 | 解析 `docs/AI-SOURCES-CURATED.md` → 產生 `sources/feeds.toml` 條目(有原生 RSS 用之;無則 RSSHub route 或略過) | Win 節點寫 Python・codex 主筆;編排節點(Win)編排+把關 | 部分來源無公開 feed(WeChat/FB 封閉);**前置=逐一 re-verify URL**(策展檔已警告會漂移) |
+| 不讓雜訊淹沒 | reachability 檢查 + `--strict` 只要求核心源可達 | Win 節點・codex 寫 / agy+codex 審 | 來源變多≠變好;**靠既有 dedup + credibility 排序**,別硬加廣度 |
 
 ### 📅 階段二 — 加深護城河(owned-memory + SRS;需設計)
 
 | 目標 | 具體項 | 在哪台機 + 哪 AI | 風險 / 前置 |
 |---|---|---|---|
-| owned-memory 一等公民 | digest capture 寫入 FTS5 從 best-effort 升為主路徑;recall 與 `srs due` 共用同一 store | M5/M1 Mac 或 acer・claude 寫 / codex+agy 審 | 跨平台 HOME 隔離 + EventKey flakiness(已知坑);**前置=mesh round-trip 測試綠** |
-| 學習行為訊號 | read-vs-unread 比例分析 → 餵給 phantom-companion ⑦ | z13 編排・claude 設計 / codex 審 | 需 companion 端介面;**前置=companion 整合點確認** |
+| owned-memory 一等公民 | digest capture 寫入 FTS5 從 best-effort 升為主路徑;recall 與 `srs due` 共用同一 store | Mac 節點 或 Win 節點・claude 寫 / codex+agy 審 | 跨平台 HOME 隔離 + EventKey flakiness(已知坑);**前置=mesh round-trip 測試綠** |
+| 學習行為訊號 | read-vs-unread 比例分析 → 餵給 phantom-companion ⑦ | 編排節點(Win)編排・claude 設計 / codex 審 | 需 companion 端介面;**前置=companion 整合點確認** |
 
 ### 🔭 階段三 — 投遞與排程(需外部 API / 操作者決策;最後做)
 
 | 目標 | 具體項 | 在哪台機 + 哪 AI | 風險 / 前置 |
 |---|---|---|---|
 | 真排程取代 hailmary cron | 把單一 `pipeline` 入口接 cron/launchd | Mac(launchd)/ Android worker・codex 寫 / claude+agy 審 | 與舊 hailmary heartbeat 遷移衝突;**前置=操作者決定遷移時點** |
-| 手機投遞 + 把關 | 走 mesh phone notify/inbox + governor 雙閘(**不**新建 Telegram bot) | z13 編排 + 手機・claude / codex 審 | 重用 mesh 原語勝過新依賴;**前置=mesh notify 通道就緒** |
-| 候選升級 | FSRS(MIT)替換手寫 SM-2 / 多模態(Whisper)/ Substack 發佈鉤 | acer/ayaneo・codex 寫 / agy+claude 審 | FSRS 需複習歷史才發威;發佈**必須 human-in-the-loop**;**前置=外部 API key + 操作者拍板** |
+| 手機投遞 + 把關 | 走 mesh phone notify/inbox + governor 雙閘(**不**新建 Telegram bot) | 編排節點(Win)編排 + 手機・claude / codex 審 | 重用 mesh 原語勝過新依賴;**前置=mesh notify 通道就緒** |
+| 候選升級 | FSRS(MIT)替換手寫 SM-2 / 多模態(Whisper)/ Substack 發佈鉤 | Win 節點・codex 寫 / agy+claude 審 | FSRS 需複習歷史才發威;發佈**必須 human-in-the-loop**;**前置=外部 API key + 操作者拍板** |
 
 ---
 
@@ -95,9 +95,9 @@ flowchart TD
 
 ## ④ 開發模型備忘(單人多機)
 
-- **z13(Win):** 編排 + 對抗式把關 + 最終判斷。
-- **M5 / M1(Mac):** launchd 排程、跨平台 capture 驗證。
-- **acer / ayaneo(Win):** Rust/Python 撰寫節點;Win-native 驗證。
+- **編排節點(Win):** 編排 + 對抗式把關 + 最終判斷。
+- **Mac 節點:** launchd 排程、跨平台 capture 驗證。
+- **Win 節點 A/B:** Rust/Python 撰寫節點;Win-native 驗證。
 - **Android worker:** 排程/投遞執行端。
 - **AI 分工:** 寫=codex/claude;審=codex + agy + claude(任意 ≥2 distinct-AI LGTM 才落地);governor + 雙閘 → 手機核准。
 - **OSS 選型一律標「候選方向」**(見 landscape §3 的 adopt/wrap/reference/build/don't-build 分類),不預先綁死。

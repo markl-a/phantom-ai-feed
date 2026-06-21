@@ -342,15 +342,15 @@ flowchart TD
 
 | 目標 | 具體項 | 在哪台機 + 哪 AI | 風險 / 前置 |
 |---|---|---|---|
-| 把策展目錄變成活的日報 | 解析 [`docs/AI-SOURCES-CURATED.md`](AI-SOURCES-CURATED.md)(~198 筆) → 產生 `sources/feeds.toml` 條目(有原生 RSS 用之;無則 RSSHub route 或略過) | acer/ayaneo(Win)寫 Python・codex 主筆;z13 編排+把關 | 部分來源無公開 feed(WeChat/FB 封閉);**前置=逐一 re-verify URL**(策展檔已警告會漂移) |
-| 不讓雜訊淹沒 | reachability 檢查 + `--strict` 只要求核心源可達 | acer・codex 寫 / agy+codex 審 | 來源變多≠變好;**靠既有 dedup + credibility 排序**,別硬加廣度 |
+| 把策展目錄變成活的日報 | 解析 [`docs/AI-SOURCES-CURATED.md`](AI-SOURCES-CURATED.md)(~198 筆) → 產生 `sources/feeds.toml` 條目(有原生 RSS 用之;無則 RSSHub route 或略過) | Win 節點寫 Python・codex 主筆;編排節點(Win)編排+把關 | 部分來源無公開 feed(WeChat/FB 封閉);**前置=逐一 re-verify URL**(策展檔已警告會漂移) |
+| 不讓雜訊淹沒 | reachability 檢查 + `--strict` 只要求核心源可達 | Win 節點・codex 寫 / agy+codex 審 | 來源變多≠變好;**靠既有 dedup + credibility 排序**,別硬加廣度 |
 
 ### 📅 階段二 — 加深護城河(owned-memory + SRS;需設計)
 
 | 目標 | 具體項 | 在哪台機 + 哪 AI | 風險 / 前置 |
 |---|---|---|---|
-| owned-memory 一等公民 | digest capture 寫入 FTS5 從 best-effort 升為主路徑;recall 與 `srs due` 共用同一 store | M5/M1 Mac 或 acer・claude 寫 / codex+agy 審 | 跨平台 HOME 隔離 + EventKey flakiness(已知坑);**前置=mesh round-trip 測試綠** |
-| 學習行為訊號 | read-vs-unread 比例分析 → 餵給 phantom-companion ⑦ | z13 編排・claude 設計 / codex 審 | 需 companion 端介面;**前置=companion 整合點確認** |
+| owned-memory 一等公民 | digest capture 寫入 FTS5 從 best-effort 升為主路徑;recall 與 `srs due` 共用同一 store | Mac 節點 或 Win 節點・claude 寫 / codex+agy 審 | 跨平台 HOME 隔離 + EventKey flakiness(已知坑);**前置=mesh round-trip 測試綠** |
+| 學習行為訊號 | read-vs-unread 比例分析 → 餵給 phantom-companion ⑦ | 編排節點(Win)編排・claude 設計 / codex 審 | 需 companion 端介面;**前置=companion 整合點確認** |
 
 ### 🧱 階段二點五 — 結構化知識庫 / 面試庫 + 主動維護 agent(願景・agentic,尚未實作)
 
@@ -358,18 +358,18 @@ flowchart TD
 
 | 目標 | 具體項 | 在哪台機 + 哪 AI | 風險 / 前置 |
 |---|---|---|---|
-| 結構化 AI 知識庫 | 把 digest/capture 從「散落記錄」升為**結構化知識點/技術條目**(去重、連結相關條目、維持一致)= 會自己長大的個人 AI wiki | z13 編排・claude 設計 / codex+agy 審 | 需先有一等公民 FTS5 store;**前置=階段二完成 + schema 設計** |
-| 面試庫(餵 tutor) | 把每週面試題沉澱成**可長期累積、可直接餵 phantom-tutor** 的面試庫成品(知識 → 面試題 → 練習閉環) | acer・codex 寫 / claude+agy 審 | 需 tutor 端介面;**前置=tutor 整合點確認** |
-| 主動維護 agent | agent 主動**補全**缺口(片段 → 補脈絡)、**修正**過時/錯誤舊知識(標「已過時/已被取代」)、整併去重 | z13 編排・claude 設計 / codex+agy 審 | 需 agent 框架 + 可信度驗證避免亂改;**前置=知識庫 schema + governor 把關(改寫須可審) ** |
-| 趨勢 / 需求分析層(規劃 / 願景) | 把攝取資訊在**時間軸**上聚合 → 浮趨勢(主題熱度變化)+ 需求(JD 在招什麼)→ **餵 phantom-tutor wealth-score + 排學習優先序**(知識庫/面試庫先補哪些) | z13 編排・claude 設計 / codex+agy 審 | 需足夠時間窗 + 來源量(樣本不足不報);**前置=餵料充足 + tutor/companion 職缺資料介面** |
+| 結構化 AI 知識庫 | 把 digest/capture 從「散落記錄」升為**結構化知識點/技術條目**(去重、連結相關條目、維持一致)= 會自己長大的個人 AI wiki | 編排節點(Win)編排・claude 設計 / codex+agy 審 | 需先有一等公民 FTS5 store;**前置=階段二完成 + schema 設計** |
+| 面試庫(餵 tutor) | 把每週面試題沉澱成**可長期累積、可直接餵 phantom-tutor** 的面試庫成品(知識 → 面試題 → 練習閉環) | Win 節點・codex 寫 / claude+agy 審 | 需 tutor 端介面;**前置=tutor 整合點確認** |
+| 主動維護 agent | agent 主動**補全**缺口(片段 → 補脈絡)、**修正**過時/錯誤舊知識(標「已過時/已被取代」)、整併去重 | 編排節點(Win)編排・claude 設計 / codex+agy 審 | 需 agent 框架 + 可信度驗證避免亂改;**前置=知識庫 schema + governor 把關(改寫須可審) ** |
+| 趨勢 / 需求分析層(規劃 / 願景) | 把攝取資訊在**時間軸**上聚合 → 浮趨勢(主題熱度變化)+ 需求(JD 在招什麼)→ **餵 phantom-tutor wealth-score + 排學習優先序**(知識庫/面試庫先補哪些) | 編排節點(Win)編排・claude 設計 / codex+agy 審 | 需足夠時間窗 + 來源量(樣本不足不報);**前置=餵料充足 + tutor/companion 職缺資料介面** |
 
 ### 🔭 階段三 — 投遞與排程(需外部 API / 操作者決策;最後做)
 
 | 目標 | 具體項 | 在哪台機 + 哪 AI | 風險 / 前置 |
 |---|---|---|---|
 | 真排程取代 hailmary cron | 把單一 `pipeline` 入口接 cron/launchd | Mac(launchd)/ Android worker・codex 寫 / claude+agy 審 | 與舊 hailmary heartbeat 遷移衝突;**前置=操作者決定遷移時點** |
-| 手機投遞 + 把關 | 走 mesh phone notify/inbox + governor 雙閘(**不**新建 Telegram bot) | z13 編排 + 手機・claude / codex 審 | 重用 mesh 原語勝過新依賴;**前置=mesh notify 通道就緒** |
-| 候選升級 | FSRS(MIT)替換手寫 SM-2 / 多模態(Whisper)/ Substack 發佈鉤 | acer/ayaneo・codex 寫 / agy+claude 審 | FSRS 需複習歷史才發威;發佈**必須 human-in-the-loop**;**前置=外部 API key + 操作者拍板** |
+| 手機投遞 + 把關 | 走 mesh phone notify/inbox + governor 雙閘(**不**新建 Telegram bot) | 編排節點(Win)編排 + 手機・claude / codex 審 | 重用 mesh 原語勝過新依賴;**前置=mesh notify 通道就緒** |
+| 候選升級 | FSRS(MIT)替換手寫 SM-2 / 多模態(Whisper)/ Substack 發佈鉤 | Win 節點・codex 寫 / agy+claude 審 | FSRS 需複習歷史才發威;發佈**必須 human-in-the-loop**;**前置=外部 API key + 操作者拍板** |
 
 > 圖例:✅ 已出貨 ｜ 🚧 近期/計畫(目前無項目實際在 flight) ｜ 📅 之後 ｜ 🧱 願景結構層 ｜ 🔭 願景 ｜ 🔴 高風險 ｜ ⚠️ over-build 警戒
 
