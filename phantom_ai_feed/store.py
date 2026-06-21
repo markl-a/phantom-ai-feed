@@ -95,8 +95,34 @@ def recall(query: str, *, db_path: Path | str = DEFAULT_DB, limit: int = 10) -> 
         try:
             rows = con.execute(_SELECT, (query, limit)).fetchall()
         except sqlite3.Error:
-            # Unparseable FTS5 query, or a corrupt DB surfacing on read.
-            return []
+            # Unparseable FTS5 query (e.g. bare operator chars).
+            rows = []
+        if not rows:
+            # Fallback to a literal substring scan. FTS5's default tokenizer
+            # treats a CJK run as a single token, so a 2-char Chinese query
+            # ("量子") never MATCHes a longer title ("量子位…"); a LIKE scan finds
+            # it. Also covers short / partial-word queries. The store is small,
+            # so the full scan is cheap.
+            rows = _like_scan(con, query, limit)
     finally:
         con.close()
     return [dict(zip(_COLUMNS, r)) for r in rows]
+
+
+def _like_scan(con: sqlite3.Connection, query: str, limit: int) -> list:
+    """Literal-substring fallback over title+summary, newest first."""
+    q = (query or "").strip()
+    if not q:
+        return []
+    # Escape LIKE wildcards so a literal % / _ in the query matches literally.
+    esc = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    like = f"%{esc}%"
+    sql = (
+        f"SELECT {', '.join(_COLUMNS)} FROM entries "
+        "WHERE title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' "
+        "ORDER BY captured_at DESC LIMIT ?"
+    )
+    try:
+        return con.execute(sql, (like, like, limit)).fetchall()
+    except sqlite3.Error:
+        return []
