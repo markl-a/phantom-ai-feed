@@ -193,3 +193,64 @@ def test_looks_like_feed_truth_table():
     assert discover._looks_like_feed(NOT_FEED_HTML) is False
     assert discover._looks_like_feed(b"<html><body>hi</body></html>") is False
     assert discover._looks_like_feed(b"") is False
+
+
+# --------------------------------------------------------------------------- #
+# 5. rel token-list matching                                                  #
+# --------------------------------------------------------------------------- #
+def test_rel_token_list_alternate_among_tokens_discovered(monkeypatch):
+    # rel is a space-separated TOKEN LIST: "alternate home" must still match.
+    page = (
+        b'<html><head>'
+        b'<link rel="alternate home" type="application/rss+xml" href="/feed.xml">'
+        b'</head></html>'
+    )
+    _install(monkeypatch, {"https://example.com/": page})
+    out = discover.discover_feeds("https://example.com/")
+    assert out == ["https://example.com/feed.xml"]
+
+
+# --------------------------------------------------------------------------- #
+# 6. jsonfeed false-positive: a page merely MENTIONING jsonfeed.org           #
+# --------------------------------------------------------------------------- #
+def test_probe_html_mentioning_jsonfeed_not_accepted(monkeypatch):
+    # No <link> tags; every probe path returns HTML that merely links to
+    # jsonfeed.org. It is NOT JSON, so it must not be accepted as a feed.
+    page = b"<html><head></head><body>home</body></html>"
+    html_with_mention = (
+        b'<html><head></head><body>'
+        b'<a href="https://jsonfeed.org">we love jsonfeed.org</a>'
+        b"</body></html>"
+    )
+    pages = {"https://example.com/": page}
+    for path in (
+        "/feed", "/rss", "/rss.xml", "/atom.xml", "/feed.xml",
+        "/index.xml", "/feed/", "/?feed=rss2",
+    ):
+        pages["https://example.com" + path] = html_with_mention
+    _install(monkeypatch, pages)
+    assert discover.discover_feeds("https://example.com/") == []
+
+    # ...but a body that merely mentions it is rejected by the sniff directly.
+    assert discover._looks_like_feed(html_with_mention) is False
+
+
+# --------------------------------------------------------------------------- #
+# 7. real JSON feed (starts with '{') IS accepted                             #
+# --------------------------------------------------------------------------- #
+def test_real_json_feed_accepted():
+    body = b'{ "version":"https://jsonfeed.org/version/1.1", "items": [] }'
+    assert discover._looks_like_feed(body) is True
+
+
+# --------------------------------------------------------------------------- #
+# 8. BOM-prefixed feed is accepted (UTF-8 BOM not stripped by lstrip)         #
+# --------------------------------------------------------------------------- #
+def test_bom_prefixed_xml_feed_accepted():
+    body = b"\xef\xbb\xbf<?xml version='1.0'?><rss version='2.0'></rss>"
+    assert discover._looks_like_feed(body) is True
+
+
+def test_bom_prefixed_json_feed_accepted():
+    body = b'\xef\xbb\xbf{ "version":"https://jsonfeed.org/version/1.1" }'
+    assert discover._looks_like_feed(body) is True

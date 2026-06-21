@@ -79,8 +79,9 @@ def test_cache_hit_skips_network(monkeypatch):
     monkeypatch.setattr(_fetch, "_raw_http_get", counting_get)
     monkeypatch.setattr(_fetch.time, "sleep", lambda s: None)
 
-    cache = {"SomeHandle": "UCcached0000000000000000"}
-    # Leading '@' is normalised away before the lookup.
+    # Cache is keyed by the normalised (casefolded, '@'-stripped) handle.
+    cache = {"somehandle": "UCcached0000000000000000"}
+    # Leading '@' is normalised away (and case folded) before the lookup.
     out = _yt.resolve_channel_id("@SomeHandle", cache=cache)
     assert out == "UCcached0000000000000000"
     assert calls["n"] == 0  # never touched the network
@@ -93,8 +94,8 @@ def test_cache_miss_populates_cache(monkeypatch):
     cache: dict = {}
     out = _yt.resolve_channel_id("@SomeHandle", cache=cache)
     assert out == UCID
-    # Stored under the normalised handle (no leading '@').
-    assert cache == {"SomeHandle": UCID}
+    # Stored under the normalised handle (no leading '@', casefolded).
+    assert cache == {"somehandle": UCID}
 
 
 # --------------------------------------------------------------------------- #
@@ -108,3 +109,55 @@ def test_network_error_returns_none(monkeypatch):
     monkeypatch.setattr(_fetch.time, "sleep", lambda s: None)
 
     assert _yt.resolve_channel_id("@SomeHandle") is None
+
+
+# --------------------------------------------------------------------------- #
+# resolve_channel_id — case-insensitive cache (handles are case-insensitive)  #
+# --------------------------------------------------------------------------- #
+def test_cache_is_case_insensitive(monkeypatch):
+    """@Foo and @foo are the SAME channel — one cache key, one network call."""
+    calls = {"n": 0}
+
+    def counting_get(url):
+        calls["n"] += 1
+        return HTML_WITH_EXTERNAL_ID
+
+    monkeypatch.setattr(_fetch, "_raw_http_get", counting_get)
+    monkeypatch.setattr(_fetch.time, "sleep", lambda s: None)
+
+    cache: dict = {}
+    first = _yt.resolve_channel_id("@Foo", cache=cache)
+    second = _yt.resolve_channel_id("@foo", cache=cache)
+    assert first == UCID and second == UCID
+    # Second resolve is a cache HIT despite different case → network hit once.
+    assert calls["n"] == 1
+
+
+# --------------------------------------------------------------------------- #
+# _CANONICAL_RE — looser match (non-www / trailing attribute variant)         #
+# --------------------------------------------------------------------------- #
+def test_canonical_fallback_non_www_and_trailing_attr(monkeypatch):
+    page = (
+        b'<html><head>'
+        b'<link rel="canonical" href="http://youtube.com/channel/'
+        + UCID.encode() + b'" data-x="1">'
+        b'</head><body>no external id</body></html>'
+    )
+    monkeypatch.setattr(_fetch, "_raw_http_get", lambda url: page)
+    monkeypatch.setattr(_fetch.time, "sleep", lambda s: None)
+    assert _yt.resolve_channel_id("@SomeHandle") == UCID
+
+
+# --------------------------------------------------------------------------- #
+# main() exit code — 1 when NOTHING resolves                                  #
+# --------------------------------------------------------------------------- #
+def test_main_returns_1_when_all_handles_fail(monkeypatch):
+    monkeypatch.setattr(_fetch, "_raw_http_get", lambda url: HTML_WITH_NEITHER)
+    monkeypatch.setattr(_fetch.time, "sleep", lambda s: None)
+    assert _yt.main(["@nope", "@alsonope"]) == 1
+
+
+def test_main_returns_0_when_at_least_one_resolves(monkeypatch):
+    monkeypatch.setattr(_fetch, "_raw_http_get", lambda url: HTML_WITH_EXTERNAL_ID)
+    monkeypatch.setattr(_fetch.time, "sleep", lambda s: None)
+    assert _yt.main(["@ok"]) == 0

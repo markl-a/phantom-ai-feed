@@ -34,7 +34,14 @@ from typing import Any, Iterable, Mapping, Optional
 CATEGORY_WEIGHTS: dict[str, float] = {
     "research": 1.0,
     "blog": 0.9,
+    # Curated long-form sources (creator channels / shows) — high per-item
+    # signal, below research/blog but well above the noisy community tier.
+    "youtube": 0.8,
+    "podcast": 0.8,
     "community": 0.6,
+    # PTT (community board): more curated than the raw firehose, but still a
+    # community source — sits at the community tier.
+    "ptt": 0.6,
     "misc": 0.5,
 }
 # Neutral default for a category we have no opinion on. Sits at/below the

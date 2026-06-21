@@ -44,6 +44,18 @@ def test_category_weight_research_beats_community():
     assert _cred.category_weight("blog") > _cred.category_weight("community")
 
 
+def test_new_source_categories_have_sensible_weights():
+    """youtube/podcast/ptt are real feeds.toml categories — they must carry
+    explicit weights (above the neutral 0.5 default), not silently fall through
+    to NEUTRAL_CATEGORY_WEIGHT."""
+    assert _cred.category_weight("youtube") == 0.8
+    assert _cred.category_weight("podcast") == 0.8
+    assert _cred.category_weight("ptt") == 0.6
+    # all sit above the neutral default an unknown category would get
+    assert _cred.category_weight("youtube") > _cred.NEUTRAL_CATEGORY_WEIGHT
+    assert _cred.category_weight("ptt") > _cred.NEUTRAL_CATEGORY_WEIGHT
+
+
 def test_unknown_category_gets_neutral_default():
     w = _cred.category_weight("totally-unknown-cat")
     assert 0.0 < w <= 1.0

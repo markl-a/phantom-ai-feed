@@ -18,11 +18,10 @@ from __future__ import annotations
 
 import argparse
 import sys
-import urllib.error
 from html.parser import HTMLParser
 from urllib.parse import urljoin
 
-from phantom_ai_feed import fetch as _fetch
+from phantom_ai_feed.resolvers import _net
 
 # Feed MIME types we accept on a ``<link rel="alternate">`` (lower-cased compare).
 _FEED_TYPES = frozenset({
@@ -65,7 +64,9 @@ class _FeedLinkParser(HTMLParser):
         if tag.lower() != "link":
             return
         a = {k.lower(): (v or "") for k, v in attrs}
-        if a.get("rel", "").strip().lower() != "alternate":
+        # ``rel`` is a space-separated TOKEN LIST (HTML spec), so match when
+        # "alternate" is ONE of the tokens — e.g. rel="alternate home".
+        if "alternate" not in a.get("rel", "").lower().split():
             return
         if a.get("type", "").strip().lower() not in _FEED_TYPES:
             return
@@ -88,16 +89,27 @@ def _dedup(seq: list[str]) -> list[str]:
 def _looks_like_feed(body: bytes) -> bool:
     """True if ``body`` plausibly starts a feed document.
 
-    Cheap structural sniff (no XML/JSON parse): strip leading whitespace, lower
-    the first ~512 bytes, and accept XML/RSS/Atom prologues or a JSON Feed
-    namespace marker. Good enough to reject HTML home pages returned by a probe.
+    Cheap structural sniff (no XML/JSON parse): strip a leading UTF-8 BOM and
+    whitespace, lower the first ~512 bytes, and accept XML/RSS/Atom prologues or
+    a body that actually LOOKS like JSON Feed. Good enough to reject HTML home
+    pages returned by a probe.
+
+    JSON Feed is only accepted when the body starts with ``{`` AND mentions
+    ``jsonfeed.org`` — an HTML page that merely links to jsonfeed.org is not a
+    feed. The BOM strip prevents a BOM-prefixed feed from being wrongly rejected
+    (``bytes.lstrip()`` does NOT remove a leading ``\\xef\\xbb\\xbf``).
     """
     if not body:
         return False
-    head = body.lstrip()[:_SNIFF_BYTES].lower()
+    # Strip a leading UTF-8 BOM (lstrip() leaves it), then leading whitespace.
+    sniff = body
+    if sniff.startswith(b"\xef\xbb\xbf"):
+        sniff = sniff[3:]
+    head = sniff.lstrip()[:_SNIFF_BYTES].lower()
     if head.startswith((b"<?xml", b"<rss", b"<feed")):
         return True
-    return b"jsonfeed.org" in head
+    # JSON Feed: must actually be JSON (start with '{'), not just mention the URL.
+    return head.startswith(b"{") and b"jsonfeed.org" in head
 
 
 def discover_feeds(url: str) -> list[str]:
@@ -106,9 +118,8 @@ def discover_feeds(url: str) -> list[str]:
     Returns an order-preserved, de-duplicated list of absolute feed URLs, or
     ``[]`` if none are found (including when the page itself cannot be fetched).
     """
-    try:
-        raw = _fetch._http_get(url)
-    except (urllib.error.URLError, OSError, TimeoutError):
+    raw = _net.get_bytes(url)
+    if raw is None:
         return []
 
     parser = _FeedLinkParser()
@@ -120,9 +131,10 @@ def discover_feeds(url: str) -> list[str]:
     found: list[str] = []
     for path in _PROBE_PATHS:
         candidate = urljoin(url, path)
-        try:
-            body = _fetch._http_get(candidate)
-        except (urllib.error.URLError, OSError, TimeoutError):
+        # Speculative probe: a single attempt (max_retries=0) so 8 candidates
+        # can't amplify into dozens of requests via per-candidate backoff.
+        body = _net.get_bytes(candidate, max_retries=0)
+        if body is None:
             continue
         if _looks_like_feed(body):
             found.append(candidate)

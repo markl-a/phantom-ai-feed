@@ -14,16 +14,17 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-import urllib.error
 
-from phantom_ai_feed import fetch as _fetch
+from phantom_ai_feed.resolvers import _net
 
 # The page embeds the canonical channel id twice; we try the JSON blob first
 # (present on virtually every channel page) and fall back to the <link rel=
 # "canonical"> tag. Channel ids are always ``UC`` + URL-safe base64-ish chars.
 _EXTERNAL_ID_RE = re.compile(r'"externalId":"(UC[\w-]+)"')
+# Loosened: optional scheme (http/https), optional www, and no requirement on
+# the closing ``">`` (a trailing attribute or single/double quote may follow).
 _CANONICAL_RE = re.compile(
-    r'<link rel="canonical" href="https://www\.youtube\.com/channel/(UC[\w-]+)">'
+    r'href="https?://(?:www\.)?youtube\.com/channel/(UC[\w-]+)'
 )
 
 
@@ -33,8 +34,14 @@ def channel_feed_url(channel_id: str) -> str:
 
 
 def _normalize_handle(handle: str) -> str:
-    """Strip surrounding whitespace and a single leading ``@``."""
-    return handle.strip().lstrip("@").strip()
+    """Strip surrounding whitespace and a single leading ``@``, then casefold.
+
+    YouTube ``@handles`` are case-INSENSITIVE, so ``@AndrejKarpathy`` and
+    ``@andrejkarpathy`` are the same channel. Casefolding here means they share
+    one cache key (one fetch) and resolve identically; the fetch URL uses the
+    casefolded handle too (YouTube treats it case-insensitively).
+    """
+    return handle.strip().lstrip("@").strip().casefold()
 
 
 def resolve_channel_id(handle: str, *, cache: dict | None = None) -> str | None:
@@ -52,9 +59,8 @@ def resolve_channel_id(handle: str, *, cache: dict | None = None) -> str | None:
         return cache[norm]
 
     url = f"https://www.youtube.com/@{norm}"
-    try:
-        raw = _fetch._http_get(url)
-    except (urllib.error.URLError, OSError, TimeoutError):
+    raw = _net.get_bytes(url)
+    if raw is None:
         return None
 
     text = raw.decode("utf-8", errors="replace")
@@ -71,8 +77,9 @@ def resolve_channel_id(handle: str, *, cache: dict | None = None) -> str | None:
 def main(argv: list[str] | None = None) -> int:
     """CLI: resolve each ``@handle`` and print its feed URL to stdout.
 
-    Unresolved handles are skipped with a note on stderr; the exit code is 0 as
-    long as the arguments parsed (this is a best-effort lookup tool).
+    Unresolved handles are skipped with a note on stderr. The exit code is 0
+    when AT LEAST ONE handle resolved, and 1 when none did — consistent with the
+    podcast/discover CLIs, so the command is usable in a ``&&`` chain.
     """
     parser = argparse.ArgumentParser(
         prog="python -m phantom_ai_feed.resolvers.youtube",
@@ -87,13 +94,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     cache: dict = {}
+    resolved_any = False
     for handle in args.handles:
         ucid = resolve_channel_id(handle, cache=cache)
         if ucid is None:
             print(f"could not resolve: {handle}", file=sys.stderr)
             continue
+        resolved_any = True
         print(channel_feed_url(ucid))
-    return 0
+    return 0 if resolved_any else 1
 
 
 if __name__ == "__main__":

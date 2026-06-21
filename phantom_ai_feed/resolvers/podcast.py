@@ -17,10 +17,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import urllib.error
 from urllib.parse import quote
 
-from phantom_ai_feed import fetch as _fetch
+from phantom_ai_feed.resolvers import _net
 
 _LOOKUP_URL = "https://itunes.apple.com/lookup?id={id}&entity=podcast"
 _SEARCH_URL = "https://itunes.apple.com/search?term={term}&entity=podcast&limit=1"
@@ -51,18 +50,16 @@ def resolve_feed(
     else:
         raise ValueError("apple_id or term required")
 
+    # Network failures (URLError/OSError/TimeoutError) are swallowed to None by
+    # the shared helper. The argument-validation ValueError above is raised
+    # BEFORE this point, so it is never mistaken for a fetch failure.
+    raw = _net.get_bytes(url)
+    if raw is None:
+        return None
     try:
-        raw = _fetch._http_get(url)
         data = json.loads(raw)
-    except (
-        urllib.error.URLError,
-        OSError,
-        TimeoutError,
-        json.JSONDecodeError,
-        ValueError,
-    ):
-        # Only network/JSON-decode failures land here. The argument-validation
-        # ValueError above is raised BEFORE this try, so it can never be caught.
+    except (json.JSONDecodeError, ValueError):
+        # A 200 body that isn't valid JSON is a best-effort miss, not a crash.
         return None
 
     for result in (data.get("results") or []) if isinstance(data, dict) else []:
