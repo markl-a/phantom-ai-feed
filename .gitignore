@@ -39,3 +39,12 @@ logs/
 # OS junk
 Thumbs.db
 .AppleDouble
+
+# Autonomous-loop scratch (never push to public; future-proof guard against
+# a blanket `git add -A`). These hold machine names / IPs / local paths.
+.ai-shared/
+overnight/
+SESSION_RESUME.md
+cache/
+TASK-*.md
+configs/agents.*.toml
