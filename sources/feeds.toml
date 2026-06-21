@@ -49,31 +49,14 @@ url       = "https://huggingface.co/blog/feed.xml"
 category  = "blog"
 
 # ---------------------------------------------------------------------------
-# P3.3 — Chinese-language AI sources (category = "zh")
+# Chinese-language AI sources (category = "zh")
 #
-# Curated zh-CN / zh-TW AI engineering feeds, all reachable without an API key
-# or login and serving RSS/Atom. Tagged `zh` so a run can filter to (or away
-# from) Chinese coverage. Some are served through a third-party RSS bridge
-# (rsshub) because the publisher offers no native feed; flagged `optional` so a
-# strict run can skip them if the bridge is down.
+# The zh sources are the working Chinese AI/tech media sites, re-homed into this
+# category further down (量子位 / 雷锋网 / 36氪 / 掘金 / InfoQ 中国). The earlier
+# jiqizhixin (机器之心) RSS now serves HTML, and paperweekly (rsshub 403) +
+# huggingface-blog-zh (404) went dead — all three removed 2026-06. 量子位 is kept
+# in the strict core; the rest are optional breadth.
 # ---------------------------------------------------------------------------
-
-[[feed]]
-name      = "jiqizhixin"          # 机器之心 — leading zh-CN AI news
-url       = "https://www.jiqizhixin.com/rss"
-category  = "zh"
-
-[[feed]]
-name      = "paperweekly"         # PaperWeekly — zh-CN paper digests
-url       = "https://rsshub.app/paperweekly"
-category  = "zh"
-optional  = true
-
-[[feed]]
-name      = "huggingface-blog-zh" # HF blog, Chinese translations
-url       = "https://huggingface.co/blog/zh/feed.xml"
-category  = "zh"
-optional  = true
 
 # ---------------------------------------------------------------------------
 # Optional English feeds — extra breadth, flagged `optional = true` so a strict
@@ -335,9 +318,9 @@ optional = true
 # ===== Blogs / newsletters (Phase-1 expansion, optional) =====
 
 [[feed]]
-name     = "blog-36kr-com"
+name     = "zh-36kr"             # 36氪 — zh-CN tech/startup news
 url      = "https://36kr.com/feed"
-category = "blog"
+category = "zh"
 optional = true
 
 [[feed]]
@@ -365,9 +348,9 @@ category = "blog"
 optional = true
 
 [[feed]]
-name     = "blog-infoq-cn"
+name     = "zh-infoq"            # InfoQ 中国 — zh-CN engineering
 url      = "https://www.infoq.cn/feed"
-category = "blog"
+category = "zh"
 optional = true
 
 [[feed]]
@@ -383,9 +366,9 @@ category = "blog"
 optional = true
 
 [[feed]]
-name     = "blog-juejin-cn"
+name     = "zh-juejin"           # 掘金 — zh-CN developer community
 url      = "https://juejin.cn/rss"
-category = "blog"
+category = "zh"
 optional = true
 
 [[feed]]
@@ -401,9 +384,9 @@ category = "blog"
 optional = true
 
 [[feed]]
-name     = "blog-leiphone-com"
+name     = "zh-leiphone"         # 雷锋网 — zh-CN AI/tech news
 url      = "https://www.leiphone.com/feed"
-category = "blog"
+category = "zh"
 optional = true
 
 [[feed]]
@@ -443,10 +426,9 @@ category = "blog"
 optional = true
 
 [[feed]]
-name     = "blog-qbitai-com"
+name     = "zh-qbitai"           # 量子位 — leading zh-CN AI media (strict core)
 url      = "https://www.qbitai.com/feed"
-category = "blog"
-optional = true
+category = "zh"
 
 [[feed]]
 name     = "blog-qwenlm-github-io"
