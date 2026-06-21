@@ -79,6 +79,7 @@ def run(
     *,
     cache_path: Path = DEFAULT_CACHE,
     seen_path: Path | None = None,
+    store_path: Path | None = None,
     top_n: int = 3,
     strict: bool = False,
     dry_run: bool = False,
@@ -124,7 +125,7 @@ def run(
             if key and key in feed_seen:
                 out.skipped_duplicate += 1
                 continue
-            res = _capture.capture_entry(entry, dry_run=dry_run)
+            res = _capture.capture_entry(entry, dry_run=dry_run, db_path=store_path)
             if res.status == "ok":
                 out.captured += 1
                 if key:
@@ -170,6 +171,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--cache", type=Path, default=DEFAULT_CACHE, dest="cache_path")
     ap.add_argument("--seen", type=Path, default=None, dest="seen_path",
                     help="per-feed dedup seen-store (default: next to --cache)")
+    ap.add_argument("--db", type=Path, default=None, dest="store_path",
+                    help="local FTS5 store path (default: ~/.phantom-mesh/.../aifeed.db)")
     ap.add_argument("--top-n", type=int, default=3)
     ap.add_argument("--strict", action="store_true",
                     help="skip feeds flagged optional=true in feeds.toml")
@@ -181,6 +184,7 @@ def main(argv: list[str] | None = None) -> int:
         feeds_toml=args.feeds,
         cache_path=args.cache_path,
         seen_path=args.seen_path,
+        store_path=args.store_path,
         top_n=args.top_n,
         strict=args.strict,
         dry_run=args.dry_run,

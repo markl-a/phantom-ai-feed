@@ -142,14 +142,15 @@ def _render(date: _dt.date, sections: list[tuple[dict, list[dict] | str]], *, st
 
 
 def _try_capture_fts5(entry: dict) -> "_capture.CaptureResult":
-    """Best-effort: append entry to phantom FTS5 via the capture adapter.
+    """Best-effort: append entry to the phantom mesh FTS5 store via the CLI seam.
 
-    Delegates to ``phantom_ai_feed.capture`` (unit-tested 3-branch CLI seam).
-    Never raises — a missing binary or a capture failure is returned as a
-    ``CaptureResult`` and otherwise ignored, so a daily run still writes its
-    Markdown even when phantom is unavailable.
+    Pinned to ``backend="phantom"`` so the daily digest keeps its original
+    semantics (best-effort capture into phantom's encrypted store, a no-op when
+    the daemon/binary is absent). The local SQLite store is the ACCUMULATE path's
+    sink; digest must not also write there, or the two paths would double-capture
+    the same day-to-day-overlapping entries (digest has no seen-store dedup).
     """
-    return _capture.capture_entry(entry)
+    return _capture.capture_entry(entry, backend="phantom")
 
 
 def run(

@@ -81,7 +81,7 @@ def test_no_cli_returns_no_cli_without_calling_subprocess(monkeypatch):
         _cap.subprocess, "run",
         lambda *a, **k: called.__setitem__("n", called["n"] + 1),
     )
-    res = _cap.capture_entry(ENTRY)
+    res = _cap.capture_entry(ENTRY, backend="phantom")
     assert res.status == "no-cli"
     assert res.ok is False
     assert called["n"] == 0  # subprocess NEVER invoked
@@ -97,7 +97,7 @@ def test_cli_failure_returns_error_with_stderr(monkeypatch):
         return _FakeProc(returncode=1, stderr="db locked: try again")
 
     monkeypatch.setattr(_cap.subprocess, "run", boom)
-    res = _cap.capture_entry(ENTRY)
+    res = _cap.capture_entry(ENTRY, backend="phantom")
     assert res.status == "error"
     assert res.ok is False
     assert "db locked" in (res.detail or "")
@@ -110,7 +110,7 @@ def test_cli_oserror_returns_error(monkeypatch):
         raise OSError("exec format error")
 
     monkeypatch.setattr(_cap.subprocess, "run", raise_os)
-    res = _cap.capture_entry(ENTRY)
+    res = _cap.capture_entry(ENTRY, backend="phantom")
     assert res.status == "error"
     assert res.ok is False
     assert "exec format error" in (res.detail or "")
@@ -123,7 +123,7 @@ def test_cli_timeout_returns_error(monkeypatch):
         raise subprocess.TimeoutExpired(cmd="phantom", timeout=5)
 
     monkeypatch.setattr(_cap.subprocess, "run", slow)
-    res = _cap.capture_entry(ENTRY)
+    res = _cap.capture_entry(ENTRY, backend="phantom")
     assert res.status == "error"
     assert res.ok is False
 
@@ -140,7 +140,7 @@ def test_cli_ok_returns_ok(monkeypatch):
         return _FakeProc(returncode=0, stdout="captured 1 event")
 
     monkeypatch.setattr(_cap.subprocess, "run", run_ok)
-    res = _cap.capture_entry(ENTRY)
+    res = _cap.capture_entry(ENTRY, backend="phantom")
     assert res.status == "ok"
     assert res.ok is True
     # the executed command is exactly the one build_capture_command produces
@@ -170,6 +170,32 @@ def test_capture_many_aggregates_statuses(monkeypatch):
     monkeypatch.setattr(
         _cap.subprocess, "run", lambda *a, **k: _FakeProc(returncode=0)
     )
-    results = _cap.capture_many([ENTRY, ENTRY, ENTRY])
+    results = _cap.capture_many([ENTRY, ENTRY, ENTRY], backend="phantom")
     assert len(results) == 3
     assert all(r.ok for r in results)
+
+
+# --------------------------------------------------------------------------- #
+# default backend = local SQLite FTS5 (no daemon)                             #
+# --------------------------------------------------------------------------- #
+def test_default_backend_writes_to_local_store(tmp_path):
+    """capture_entry() with no backend arg writes to the local SQLite store and
+    is immediately recallable — no phantom daemon involved."""
+    from phantom_ai_feed import store as _store
+
+    db = tmp_path / "k.db"
+    res = _cap.capture_entry(
+        {"title": "Mixture of Experts routing", "summary_excerpt": "sparse MoE",
+         "link": "http://e/moe", "source": "arxiv", "category": "research"},
+        db_path=db,
+    )
+    assert res.status == "ok" and res.ok
+    rows = _store.recall("experts", db_path=db)
+    assert rows and rows[0]["link"] == "http://e/moe"
+
+
+def test_local_backend_dry_run_writes_nothing(tmp_path):
+    db = tmp_path / "k.db"
+    res = _cap.capture_entry({"title": "x", "link": "l", "source": "s"}, db_path=db, dry_run=True)
+    assert res.status == "dry-run"
+    assert not db.exists()  # nothing written

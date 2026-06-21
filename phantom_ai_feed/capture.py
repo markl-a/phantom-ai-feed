@@ -96,19 +96,49 @@ def build_capture_command(entry: dict) -> list[str]:
     ]
 
 
-def capture_entry(entry: dict, *, dry_run: bool = False) -> CaptureResult:
-    """Capture one entry into the phantom FTS5 store via the CLI seam.
+def capture_entry(
+    entry: dict,
+    *,
+    dry_run: bool = False,
+    backend: str = "local",
+    db_path=None,
+) -> CaptureResult:
+    """Capture one entry into the knowledge store.
 
-    Branches:
-      1. ``dry_run`` → build the command, return it, DO NOT execute.
-      2. no ``phantom`` on PATH → ``status="no-cli"`` (subprocess never called).
-      3. CLI present, non-zero / raised / timed-out → ``status="error"``.
-      4. CLI present, exit 0 → ``status="ok"``.
+    ``backend="local"`` (default) writes directly to the pure-stdlib SQLite FTS5
+    store (no daemon — see ``store.py``). ``backend="phantom"`` uses the mesh
+    ``phantom event capture`` CLI seam (needs ``phantom serve`` running).
+
+    ``dry_run`` builds the phantom command and returns it WITHOUT writing
+    anything, regardless of backend.
+    """
+    if dry_run:
+        return CaptureResult(status="dry-run", command=build_capture_command(entry))
+    if backend == "phantom":
+        return _capture_phantom(entry)
+    return _capture_local(entry, db_path)
+
+
+def _capture_local(entry: dict, db_path) -> CaptureResult:
+    """Write the entry into the local SQLite FTS5 store. No daemon required."""
+    import sqlite3
+
+    from . import store
+
+    try:
+        store.capture(entry, db_path=db_path or store.DEFAULT_DB)
+    except (sqlite3.Error, OSError) as e:  # disk/DB error — never raise into the run
+        return CaptureResult(status="error", detail=str(e)[:200])
+    return CaptureResult(status="ok")
+
+
+def _capture_phantom(entry: dict) -> CaptureResult:
+    """Capture via the ``phantom event capture`` CLI (the mesh daemon backend).
+
+    Branches: no ``phantom`` on PATH → ``no-cli``; CLI raised / non-zero /
+    timed-out → ``error``; exit 0 → ``ok``.
     """
     cmd = build_capture_command(entry)
-
-    if dry_run:
-        return CaptureResult(status="dry-run", command=cmd)
 
     if not shutil.which("phantom"):
         return CaptureResult(
@@ -139,7 +169,10 @@ def capture_entry(entry: dict, *, dry_run: bool = False) -> CaptureResult:
 
 
 def capture_many(
-    entries: Iterable[dict], *, dry_run: bool = False
+    entries: Iterable[dict], *, dry_run: bool = False, backend: str = "local", db_path=None
 ) -> list[CaptureResult]:
     """Capture a batch of entries; per-entry result is collected, never raised."""
-    return [capture_entry(e, dry_run=dry_run) for e in entries]
+    return [
+        capture_entry(e, dry_run=dry_run, backend=backend, db_path=db_path)
+        for e in entries
+    ]
