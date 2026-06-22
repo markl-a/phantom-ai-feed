@@ -117,8 +117,14 @@ def summarize_phantom(
     if not shutil.which("phantom"):
         raise RuntimeError("phantom not on PATH")
     prompt = _build_prompt(text, max_words) if wrap else text
+    # Optional provider passthrough: when PHANTOM_PROVIDER is set and non-empty,
+    # inject `--provider <value>` right after "exec". Unset/empty → argv unchanged.
+    argv = ["phantom", "exec", prompt]
+    provider = os.environ.get("PHANTOM_PROVIDER", "").strip()
+    if provider:
+        argv = ["phantom", "exec", "--provider", provider, prompt]
     proc = subprocess.run(
-        ["phantom", "exec", prompt],
+        argv,
         capture_output=True,
         encoding="utf-8",
         errors="replace",
