@@ -1,6 +1,6 @@
 # Final Release Audit
 
-Status: release-tagged locally; remote publication pending.
+Status: release candidate approved and tagged.
 
 Date: 2026-06-26
 
@@ -27,5 +27,5 @@ Direct default release-scope dependency/license review result: pass.
 
 - Manual maintainer approval is recorded in `docs/PUBLIC_RELEASE_APPROVAL.md`.
 - Local annotated tag `v0.1.0-alpha.0` was created after the root strict approval verifier and conductor sign-off passed.
-- Remote tag push and public release publication are pending target remote and repository visibility confirmation.
+- Release candidate tag `v0.1.0-alpha.0` identifies the approved public source release candidate.
 - Any future live source, account, cookie, browser, or cloud LLM adapter requires separate dependency/license and privacy review.
