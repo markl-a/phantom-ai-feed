@@ -11,10 +11,25 @@ requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Mark Lai" }]
 keywords = ["ai", "rss", "digest", "local-first", "srs", "phantom-mesh"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content :: News/Diary",
+    "Topic :: Text Processing :: Indexing",
+]
 
 # Runtime is stdlib-only. Optional LLM/source integrations are reached through
 # local CLIs or explicitly configured external tools, not package dependencies.
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/markl-a/phantom-ai-feed"
+Repository = "https://github.com/markl-a/phantom-ai-feed"
+Issues = "https://github.com/markl-a/phantom-ai-feed/issues"
+Changelog = "https://github.com/markl-a/phantom-ai-feed/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]

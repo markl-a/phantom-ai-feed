@@ -30,6 +30,7 @@ def test_release_checklist_documents_final_gate_without_claiming_release_ready()
     checklist = _read("docs/RELEASE_CHECKLIST.md")
     combined = f"{changelog}\n{checklist}".lower()
 
+    assert "0.1.0-alpha.0 - 2026-06-27" in changelog
     assert "release-candidate tag" in combined
     assert "python -m pytest -q" in checklist
     assert "docs/open_source_readiness.md" in combined
@@ -39,6 +40,7 @@ def test_release_checklist_documents_final_gate_without_claiming_release_ready()
     assert "manual maintainer approval" in combined
     assert "contributing.md" in combined
     assert "security.md" in combined
+    assert "approved release-candidate tag: `v0.1.0-alpha.0`" in changelog.lower()
 
 
 def test_final_release_audit_records_scan_dependency_review_and_blockers() -> None:
@@ -77,5 +79,18 @@ def test_release_notes_tag_plan_and_approval_gate_are_documented() -> None:
 def test_ci_runs_release_prep_gate() -> None:
     workflow = _read(".github/workflows/ci.yml")
 
+    assert "python -m pip install -e .[dev]" in workflow
+    assert "python -m pip wheel . --no-deps -w dist-smoke" in workflow
+    assert "no-network deterministic demo-loop smoke" in workflow
+    assert "python -m phantom_ai_feed.demo_loop --out demo-loop-smoke --date 2026-06-26 --query RAG" in workflow
     assert "release-prep gate" in workflow
     assert "python -m pytest tests/test_release_prep_contract.py -q" in workflow
+
+
+def test_design_drafts_are_explicitly_outside_public_release_scope() -> None:
+    draft = _read("docs/_drafts/source-expansion-design.md").lower()
+
+    assert "不屬於 `v0.1.0-alpha.0` public release 支援面" in draft
+    assert "public release boundary" in draft
+    assert "cookie" in draft
+    assert "不是 release instruction" in draft

@@ -27,6 +27,21 @@ def test_pyproject_declares_installable_console_scripts():
     assert scripts == expected
 
 
+def test_pyproject_declares_public_package_metadata():
+    with PYPROJECT.open("rb") as fp:
+        project = tomllib.load(fp)["project"]
+
+    classifiers = set(project["classifiers"])
+    urls = project["urls"]
+
+    assert "Development Status :: 3 - Alpha" in classifiers
+    assert "License :: OSI Approved :: Apache Software License" in classifiers
+    assert "Programming Language :: Python :: 3.11" in classifiers
+    assert urls["Homepage"] == "https://github.com/markl-a/phantom-ai-feed"
+    assert urls["Repository"] == "https://github.com/markl-a/phantom-ai-feed"
+    assert urls["Issues"] == "https://github.com/markl-a/phantom-ai-feed/issues"
+
+
 def test_console_script_targets_are_importable_and_callable():
     with PYPROJECT.open("rb") as fp:
         scripts = tomllib.load(fp)["project"]["scripts"]

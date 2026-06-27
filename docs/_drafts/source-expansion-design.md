@@ -1,9 +1,12 @@
-# 資料源擴充 — 設計草稿(全平台攝取)
+# 資料源擴充 — 非 release scope 設計草稿(全平台攝取)
 
-> **狀態:設計草稿(untracked)。** 對應主文件 Phase 1「餵飽引擎」與 Phase 3「多模態」。
+> **狀態:設計草稿,不屬於 `v0.1.0-alpha.0` public release 支援面。** 對應主文件
+> Phase 1「餵飽引擎」與 Phase 3「多模態」。
 > 2026-06 由並行研究 agent 實際 web fetch + GitHub API 驗證;**接入前仍須逐一 re-verify
 > URL/repo**(策展檔已警告會漂移)。本檔是「怎麼把更多平台接進來」的方法論與架構,不是
 > feeds.toml 本身。
+
+> **Public release boundary:** 首版開源只支援 stdlib RSS/Atom 核心與 deterministic synthetic/offline demo。任何 OAuth、cookie、帳號、瀏覽器、自架 relay、Docker、cloud LLM 或 live-source adapter 都必須在獨立審查後才能變成支援功能;本草稿中的 cookie/帳號方案不是 release instruction,也不是使用者應立即啟用的功能。
 
 ## 核心架構原則(一句話)
 

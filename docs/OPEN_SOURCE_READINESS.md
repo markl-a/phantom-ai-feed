@@ -200,3 +200,22 @@ Evidence:
 - `python -m pytest -q`: 221 passed, 1 skipped.
 
 Remaining P4 work: none for the approved release-candidate tag.
+
+## P4 Release-Prep Slice 5
+
+Status: public release gate hardened and verified for package metadata, CI installability, wheel build, public demo paths, and draft-scope clarity.
+
+Evidence:
+- `pyproject.toml` includes public package classifiers and GitHub project URLs.
+- `.github/workflows/ci.yml` installs `.[dev]`, builds a wheel with `python -m pip wheel . --no-deps -w dist-smoke`, runs the full pytest suite, runs deterministic `demo_loop`, and runs the release-prep gate.
+- `CHANGELOG.md` now records `0.1.0-alpha.0 - 2026-06-27` as the approved release candidate instead of the stale not-release-ready status.
+- `docs/_drafts/source-expansion-design.md` explicitly states that OAuth, cookie, account, browser, self-hosted relay, Docker, cloud LLM, and live-source adapters are outside the `v0.1.0-alpha.0` public release support surface until separately reviewed.
+- `python -m pytest tests\test_packaging.py tests\test_release_prep_contract.py -q`: 9 passed.
+- `python -m pip install -e . --dry-run --no-deps`: editable metadata OK; would install `phantom-ai-feed-0.1.0a0`.
+- `python -m pip wheel . --no-deps -w <temp>`: built `phantom_ai_feed-0.1.0a0-py3-none-any.whl`.
+- `python -m phantom_ai_feed.demo_loop --out <temp> --date 2026-06-26 --query RAG`: wrote synthetic-only manifest with `external_network=false` and `private_data_included=false`.
+- `python -m phantom_ai_feed.source_export --source <bundle> --out <export>` and `python -m phantom_ai_feed.knowledge_scenario --source <bundle> --out <scenario>` both wrote manifests with `external_network=false` and `private_data_included=false`.
+- High-confidence secret scan: `high_conf_secret_hits=0`.
+- `python -m pytest -q`: 223 passed, 1 skipped.
+
+Remaining P4 work: none for the current approved public source release candidate.
