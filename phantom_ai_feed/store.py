@@ -32,9 +32,11 @@ _INSERT = (
     f"INSERT INTO entries ({', '.join(_COLUMNS)}) "
     f"VALUES ({', '.join('?' for _ in _COLUMNS)})"
 )
-_SELECT = (
-    f"SELECT {', '.join(_COLUMNS)} FROM entries "
-    "WHERE entries MATCH ? ORDER BY rank LIMIT ?"
+# column_index -1 lets FTS5 pick whichever indexed column actually matched;
+# the matched token(s) come back wrapped in **bold** with surrounding context.
+_SELECT_WITH_SNIPPET = (
+    f"SELECT {', '.join(_COLUMNS)}, snippet(entries, -1, '**', '**', '…', 10) "
+    "FROM entries WHERE entries MATCH ? ORDER BY rank LIMIT ?"
 )
 
 
@@ -82,6 +84,10 @@ def capture(entry: dict, *, db_path: Path | str = DEFAULT_DB, on: _dt.date | Non
 def recall(query: str, *, db_path: Path | str = DEFAULT_DB, limit: int = 10) -> list[dict]:
     """Full-text search the store, most-relevant first. Returns a list of dicts.
 
+    Each hit carries a ``snippet`` key — the matched token(s) highlighted in
+    context via FTS5's ``snippet()``; empty string on the LIKE-fallback path
+    (that path has no MATCH info to build a snippet from).
+
     A missing DB or an unparseable FTS5 query (user typed bare operator chars)
     returns ``[]`` rather than raising — recall is best-effort."""
     p = Path(db_path)
@@ -93,20 +99,21 @@ def recall(query: str, *, db_path: Path | str = DEFAULT_DB, limit: int = 10) -> 
         return []  # corrupt/locked DB — best-effort recall yields nothing
     try:
         try:
-            rows = con.execute(_SELECT, (query, limit)).fetchall()
+            rows = con.execute(_SELECT_WITH_SNIPPET, (query, limit)).fetchall()
         except sqlite3.Error:
             # Unparseable FTS5 query (e.g. bare operator chars).
             rows = []
-        if not rows:
-            # Fallback to a literal substring scan. FTS5's default tokenizer
-            # treats a CJK run as a single token, so a 2-char Chinese query
-            # ("量子") never MATCHes a longer title ("量子位…"); a LIKE scan finds
-            # it. Also covers short / partial-word queries. The store is small,
-            # so the full scan is cheap.
-            rows = _like_scan(con, query, limit)
+        if rows:
+            return [dict(zip(_COLUMNS + ("snippet",), r)) for r in rows]
+        # Fallback to a literal substring scan. FTS5's default tokenizer
+        # treats a CJK run as a single token, so a 2-char Chinese query
+        # ("量子") never MATCHes a longer title ("量子位…"); a LIKE scan finds
+        # it. Also covers short / partial-word queries. The store is small,
+        # so the full scan is cheap.
+        rows = _like_scan(con, query, limit)
     finally:
         con.close()
-    return [dict(zip(_COLUMNS, r)) for r in rows]
+    return [dict(zip(_COLUMNS, r), snippet="") for r in rows]
 
 
 def _like_scan(con: sqlite3.Connection, query: str, limit: int) -> list:
