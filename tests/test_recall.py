@@ -22,6 +22,36 @@ def test_recall_cli_prints_hit(tmp_path, capsys):
     assert "http://e/v" in out
 
 
+def test_recall_cli_prints_summary_body(tmp_path, capsys):
+    db = tmp_path / "k.db"
+    store.capture(
+        {
+            "title": "vLLM paged attention",
+            "summary": "38% less KV-cache on a 70B model",
+            "link": "http://e/v",
+            "source": "blog",
+            "category": "blog",
+        },
+        db_path=db,
+    )
+    recall.main(["paged", "--db", str(db)])
+    out = capsys.readouterr().out
+    assert "38% less KV-cache on a 70B model" in out
+
+
+def test_recall_cli_truncates_long_summary(tmp_path, capsys):
+    db = tmp_path / "k.db"
+    long_summary = "x " * 200  # far past the CLI's one-line truncation limit
+    store.capture(
+        {"title": "t", "summary": long_summary, "link": "l", "source": "s"},
+        db_path=db,
+    )
+    recall.main(["t", "--db", str(db)])
+    out = capsys.readouterr().out
+    assert long_summary.strip() not in out
+    assert "…" in out
+
+
 def test_recall_cli_no_match_returns_1(tmp_path, capsys):
     db = tmp_path / "k.db"
     store.capture({"title": "x", "link": "l", "source": "s"}, db_path=db)

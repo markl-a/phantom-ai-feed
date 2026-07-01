@@ -12,6 +12,8 @@ from pathlib import Path
 
 from . import store as _store
 
+_SUMMARY_MAX_CHARS = 140
+
 
 def _utf8_streams() -> None:
     """Feed titles AND CJK queries carry emoji/CJK; a Windows console defaults to
@@ -42,6 +44,11 @@ def main(argv: list[str] | None = None) -> int:
     for r in rows:
         title = r["title"] or "(untitled)"
         print(f"- {title}  [{r['source']} · {r['category']} · {r['captured_at']}]")
+        summary = " ".join((r.get("summary") or "").split())
+        if summary:
+            if len(summary) > _SUMMARY_MAX_CHARS:
+                summary = summary[:_SUMMARY_MAX_CHARS].rstrip() + "…"
+            print(f"  {summary}")
         if r["link"]:
             print(f"  {r['link']}")
     return 0
