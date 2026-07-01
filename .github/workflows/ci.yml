@@ -12,5 +12,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install pytest
-      - run: pytest tests/ -ra -q
+      - run: python -m pip install -e .[dev]
+      - run: python -m pip wheel . --no-deps -w dist-smoke
+      - run: python -m pytest tests/ -ra -q
+      - name: no-network deterministic demo-loop smoke
+        run: python -m phantom_ai_feed.demo_loop --out demo-loop-smoke --date 2026-06-26 --query RAG
+      - name: release-prep gate
+        run: python -m pytest tests/test_release_prep_contract.py -q

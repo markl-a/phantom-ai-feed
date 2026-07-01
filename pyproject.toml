@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "phantom-ai-feed"
+version = "0.1.0a0"
+description = "Local-first AI feed ingestion, digest, recall, and SRS pipeline for the phantom-mesh ecosystem."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Mark Lai" }]
+keywords = ["ai", "rss", "digest", "local-first", "srs", "phantom-mesh"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content :: News/Diary",
+    "Topic :: Text Processing :: Indexing",
+]
+
+# Runtime is stdlib-only. Optional LLM/source integrations are reached through
+# local CLIs or explicitly configured external tools, not package dependencies.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/markl-a/phantom-ai-feed"
+Repository = "https://github.com/markl-a/phantom-ai-feed"
+Issues = "https://github.com/markl-a/phantom-ai-feed/issues"
+Changelog = "https://github.com/markl-a/phantom-ai-feed/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+phantom-ai-feed = "phantom_ai_feed.pipeline:main"
+phantom-ai-feed-digest = "phantom_ai_feed.digest:main"
+phantom-ai-feed-weekly = "phantom_ai_feed.weekly:main"
+phantom-ai-feed-recall = "phantom_ai_feed.recall:main"
+phantom-ai-feed-srs = "phantom_ai_feed.srs:main"
+phantom-ai-feed-export = "phantom_ai_feed.source_export:main"
+phantom-ai-feed-scenario = "phantom_ai_feed.knowledge_scenario:main"
+
+[tool.setuptools.packages.find]
+include = ["phantom_ai_feed*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

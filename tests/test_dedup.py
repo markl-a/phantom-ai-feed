@@ -46,6 +46,16 @@ def test_normalize_url_empty_is_empty():
     assert _dd.normalize_url(None) == ""
 
 
+def test_normalize_url_strips_default_port_keeps_nondefault():
+    assert _dd.normalize_url("https://x.com:443/a") == _dd.normalize_url("https://x.com/a")
+    assert _dd.normalize_url("http://x.com:80/a") == _dd.normalize_url("http://x.com/a")
+    # a non-default port is real story identity — must NOT be dropped
+    port = _dd.normalize_url("https://x.com:8443/a")
+    bare = _dd.normalize_url("https://x.com/a")
+    assert port != bare
+    assert port.startswith("x.com:8443")
+
+
 # --------------------------------------------------------------------------- #
 # title token similarity                                                      #
 # --------------------------------------------------------------------------- #

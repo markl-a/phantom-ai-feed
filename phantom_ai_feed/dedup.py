@@ -58,8 +58,11 @@ def normalize_url(url: str | None) -> str:
     """Canonicalise a URL for identity comparison.
 
     Drops scheme, leading ``www.``, fragment, and tracking query params; lower-
-    cases the host; removes a single trailing slash from the path. Remaining
-    meaningful query params are kept and sorted so order does not matter.
+    cases the host; strips the default port (``:80``, ``:443``) so a default-
+    port URL and its portless equivalent canonicalise equal, while a non-
+    default port is preserved; removes a single trailing slash from the path.
+    Remaining meaningful query params are kept and sorted so order does not
+    matter.
     """
     if not url:
         return ""
@@ -68,9 +71,15 @@ def normalize_url(url: str | None) -> str:
     except ValueError:
         return url.strip().lower()
 
-    host = (parts.netloc or "").lower()
+    host = (parts.hostname or "").lower()
     if host.startswith("www."):
         host = host[4:]
+    try:
+        port = parts.port
+    except ValueError:
+        port = None
+    if port is not None and port not in (80, 443):
+        host = f"{host}:{port}"
 
     path = parts.path or ""
     if len(path) > 1 and path.endswith("/"):
