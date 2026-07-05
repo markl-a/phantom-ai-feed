@@ -6,6 +6,23 @@
 
 > 給中文 AI/ML 工程師的「每天 10 分鐘讀完 → 週末自動出面試題複習 → 本機 RAG 可查」三合一本機資訊代謝管線(phantom-mesh 生態系)。純 Python stdlib、不外洩、owned-memory + SRS。
 
+For the honest shipped-vs-roadmap status of every module, see
+[FEATURE-AUDIT.md](FEATURE-AUDIT.md).
+
+## Install
+
+```powershell
+# from a clone, with test tooling
+python -m pip install -e .[dev]
+
+# runtime only (stdlib-only, zero third-party deps)
+python -m pip install -e .
+```
+
+Requires Python >= 3.11. There are no runtime dependencies; optional LLM
+summarization is reached through a local `phantom exec` or a Gemini API key, not
+through pip.
+
 ## Quickstart
 
 ```powershell
